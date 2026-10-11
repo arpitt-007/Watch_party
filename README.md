@@ -17,6 +17,7 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 |---|---|
 | Create / join via invite link or room code | `POST /api/rooms`, `/?room=CODE`, case-insensitive codes from an unambiguous alphabet |
 | Synchronised play / pause / seek | server-authoritative playback clock, see *How sync works* |
+| YouTube videos | catalog entries + paste any YouTube link (title looked up via oEmbed) + optional search; played with the YouTube IFrame API, see *YouTube* below |
 | Movie recommendations, categories, filters, fuzzy search | `server/search.js` (typo-tolerant, Damerau-Levenshtein per token over title / genre / tags / people / description), `/api/categories`, `/api/recommendations` |
 | Emoji reactions, live chat, shared playlists, polls, host transfer | `server/room.js` |
 | Automatic drift detection + correction | `public/sync-core.js` |
@@ -48,6 +49,14 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 6. **Reconnection.** Identity is a per-tab `clientId` (sessionStorage), so a refresh or network blip returns you to the same seat — same name, same host role if within the grace period — with no ghost duplicate.
 7. **Local interference.** Native controls are removed and the player re-asserts the room state if something (a media key, an extension) pauses it behind the app's back.
 
+## YouTube
+
+* **Catalog:** 7 official Blender short films are hosted on YouTube (tagged ▶ YouTube) next to the direct-file titles.
+* **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id and looks up the title with YouTube's keyless oEmbed endpoint.
+* **Search (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` enables the *Search YouTube* box (only embeddable videos are returned). Without a key the box explains how to enable it; links and catalog titles still work. *Search is untested against the live API in this repo, since no key was available.*
+* **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±19–60 ms. The YouTube iframe is click-through (`pointer-events:none`) so every control goes through the room; owners who disabled embedding show a message instead of a player.
+* Requires internet access to youtube.com. Playing YouTube through a custom UI follows YouTube's embedded-player terms; ads shown by YouTube are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync.
+
 ## Protocol (JSON over WebSocket `/ws`)
 
 Client → server: `join`, `ping`, `control{action: play|pause|seek, position, aid}`, `setVideo{catalogId|url}`, `ended{token}`, `report{drift, rtt, buffering, duration, token}`, `chat`, `react`, `queue.add|remove|vote|play`, `poll.create|vote|close`, `host.transfer|kick`, `settings{controlMode}`.
@@ -66,8 +75,8 @@ docs/LATENCY.md    measurements, test conditions, failure handling
 ```
 
 ## Honest limitations
-* **Catalog is small** (8 freely-licensed titles: Blender open movies and CC0 clips on public hosts). Metadata such as ratings is hand-curated. Adding titles = adding objects to `server/catalog.js`; any direct video URL also works. The sources are third-party hosts; if one goes offline the player shows an error (Google's old sample bucket was already dead and was replaced during development).
-* Only HTML5-playable sources (mp4/webm). No YouTube/DRM streaming — those players can't be driven with this precision.
+* **Catalog is small** (15 titles: Blender open movies and CC0 clips, 7 of them via YouTube). Metadata such as ratings is hand-curated. Adding titles = adding objects to `server/catalog.js`; any direct video URL also works. The sources are third-party hosts; if one goes offline the player shows an error (Google's old sample bucket was already dead and was replaced during development).
+* Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
 * Rooms are in memory (a server restart ends them); no accounts or auth — anyone with the code can join.
 * Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.
 * Background browser tabs are throttled by the browser, which can cause brief drift until the tab is active again.

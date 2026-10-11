@@ -8,6 +8,26 @@ const EMOJIS = ['😂', '😮', '😢', '❤️', '👏', '🔥', '😱', '🎉'
 const BIN_SECONDS = 5;
 const MAX_MEMBERS = 100;
 
+function youtubeId(input) {
+  let u;
+  try { u = new URL(String(input).trim()); } catch (e) { return null; }
+  const host = u.hostname.replace(/^(www|m|music)\./, '');
+  let id = null;
+  if (host === 'youtu.be') id = u.pathname.slice(1, 12);
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    if (u.pathname === '/watch') id = u.searchParams.get('v');
+    else { const m = u.pathname.match(/^\/(embed|shorts|live|v)\/([A-Za-z0-9_-]{11})/); id = m && m[2]; }
+  }
+  return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+}
+async function youtubeTitle(id) {
+  try {
+    const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { signal: AbortSignal.timeout(3000) });
+    if (res.ok) return clampStr((await res.json()).title, 100);
+  } catch (e) { /* offline or blocked: fall back to a generic title */ }
+  return '';
+}
+
 const rid = (n = 6) => crypto.randomBytes(n).toString('hex');
 const clampStr = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
 
@@ -209,12 +229,24 @@ class Room {
       return mv ? catalog.toVideo(mv) : null;
     }
     if (desc && desc.url) {
+      const ytId = youtubeId(desc.url);
+      if (ytId) return { id: null, title: clampStr(desc.title, 100), needsTitle: true, source: 'youtube', ytId, src: 'https://www.youtube.com/watch?v=' + ytId, emoji: '▶️', hue: 0 };
       let u;
       try { u = new URL(String(desc.url)); } catch (e) { return null; }
       if (!/^https?:$/.test(u.protocol) || String(desc.url).length > 500) return null;
       return { id: null, title: clampStr(desc.title, 100) || u.pathname.split('/').pop() || u.host, src: u.href, emoji: '🎞️', hue: 220, source: 'url' };
     }
     return null;
+  }
+
+  // Resolve a video descriptor; pasted YouTube links need a title lookup (async), everything else is synchronous.
+  withVideo(m, desc, done) {
+    const v = this.makeVideo(desc);
+    if (!v) return this.err(m, 'bad-video', 'Could not use that video');
+    if (!v.needsTitle) return done(v);
+    delete v.needsTitle;
+    const finish = (title) => { v.title = v.title || title || 'YouTube video'; done(v); };
+    if (v.title) finish(); else youtubeTitle(v.ytId).then(finish).catch(() => finish());
   }
 
   startVideo(video, m, why = 'video') {
@@ -230,9 +262,7 @@ class Room {
 
   setVideoFrom(m, msg) {
     if (!this.canControl(m.id)) return this.err(m, 'forbidden', 'Only the host can change the video');
-    const v = this.makeVideo(msg);
-    if (!v) return this.err(m, 'bad-video', 'Could not use that video');
-    this.startVideo(v, m);
+    this.withVideo(m, msg, (v) => this.startVideo(v, m));
   }
 
   videoEnded(m, msg) {
@@ -295,15 +325,15 @@ class Room {
 
   // ---------- queue ----------
   queueAdd(m, msg) {
-    const v = this.makeVideo(msg);
-    if (!v) return this.err(m, 'bad-video', 'Could not use that video');
     if (this.playlist.length >= 50) return this.err(m, 'queue-full', 'Queue is full');
-    const dup = this.playlist.find((i) => i.video.src === v.src);
-    if (dup) { dup.voters.add(m.id); } else {
-      this.playlist.push({ id: rid(4), video: v, addedBy: m.id, addedAt: Date.now(), voters: new Set([m.id]), pinned: 0 });
-      this.sysChat(`${m.name} queued "${v.title}"`);
-    }
-    this.broadcast(this.publicPlaylist());
+    this.withVideo(m, msg, (v) => {
+      const dup = this.playlist.find((i) => i.video.src === v.src);
+      if (dup) { dup.voters.add(m.id); } else {
+        this.playlist.push({ id: rid(4), video: v, addedBy: m.id, addedAt: Date.now(), voters: new Set([m.id]), pinned: 0 });
+        this.sysChat(`${m.name} queued "${v.title}"`);
+      }
+      this.broadcast(this.publicPlaylist());
+    });
   }
   queueRemove(m, msg) {
     const it = this.playlist.find((i) => i.id === msg.id);
@@ -449,4 +479,4 @@ class RoomManager {
   close() { clearInterval(this.timer); for (const r of this.rooms.values()) r.destroy(); }
 }
 
-module.exports = { Room, RoomManager, EMOJIS };
+module.exports = { Room, RoomManager, EMOJIS, youtubeId };

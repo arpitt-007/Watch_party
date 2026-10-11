@@ -42,6 +42,7 @@
     <section class="stage">
       <div id="player" class="player">
         <video id="video" playsinline preload="auto"></video>
+        <div id="ytWrap" class="ytwrap hidden"><div id="ytHost"></div></div>
         <div id="emptyState" class="empty">
           <div class="empty-emoji">🎬</div>
           <h2>Nothing playing yet</h2>
@@ -102,9 +103,12 @@
             <select id="fSort" title="Sort"><option value="">Best match</option><option value="rating">Rating</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
           </div>
         </div>
+        <form id="ytForm" class="row"><input id="ytQ" placeholder="Search YouTube…"><button>Search</button></form>
+        <p id="ytHint" class="muted small">▶ YouTube titles are marked in the lists. Paste any YouTube link below to watch it together.</p>
+        <div id="ytResults" class="list"></div>
         <div id="discoverBody" class="discover-body"></div>
         <form id="urlForm" class="urlbox">
-          <input id="urlInput" type="url" placeholder="…or paste a direct video URL (.mp4 / .webm)">
+          <input id="urlInput" type="url" placeholder="Paste a YouTube link or direct .mp4 / .webm URL">
           <button type="button" id="urlPlay">▶ Play</button><button type="button" id="urlQueue">＋ Queue</button>
         </form>
         <div id="pickBar" class="pickbar hidden"><span id="pickCount"></span><button id="pickPoll" class="primary">Start “what next?” poll</button><button id="pickClear" class="ghost">Clear</button></div>

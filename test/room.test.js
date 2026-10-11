@@ -231,3 +231,22 @@ test('same clientId in a second connection replaces the first (no ghost members)
   assert.strictEqual(dup.members.length, 2);
   cs.forEach((c) => c.close()); dup.close();
 });
+
+test('YouTube: links are parsed (watch / youtu.be / shorts), catalog entries resolve, lookalike hosts are rejected', async () => {
+  const { cs, host } = await party(2);
+  host.send({ t: 'setVideo', url: 'https://youtu.be/dQw4w9WgXcQ?si=x', title: 'Never' });
+  const st = await cs[1].waitFor((m) => m.why === 'video');
+  assert.strictEqual(st.video.source, 'youtube');
+  assert.strictEqual(st.video.ytId, 'dQw4w9WgXcQ');
+  assert.strictEqual(st.video.title, 'Never');
+  host.send({ t: 'setVideo', catalogId: 'spring' });
+  const st2 = await cs[1].next((m) => m.why === 'video' && m.video.id === 'spring');
+  assert.strictEqual(st2.video.ytId, 'WhWc3b3KhnY');
+  host.send({ t: 'queue.add', url: 'https://www.youtube.com/shorts/abcdefghijk', title: 'Short' });
+  const pl = await cs[1].waitFor((m) => m.t === 'playlist' && m.items.length);
+  assert.strictEqual(pl.items[0].video.ytId, 'abcdefghijk');
+  host.send({ t: 'setVideo', url: 'https://evilyoutube.com/watch?v=dQw4w9WgXcQ' }); // not YouTube: treated as a plain URL (loaded in <video>, not an iframe)
+  const st3 = await cs[1].next((m) => m.why === 'video' && m.video.source === 'url');
+  assert.strictEqual(st3.video.ytId, undefined);
+  cs.forEach((c) => c.close());
+});

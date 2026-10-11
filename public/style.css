@@ -130,3 +130,8 @@ button.big { padding: 11px 18px; font-size: 15px; }
   .side { min-height: 460px; }
   .player { max-height: none; }
 }
+
+.ytwrap { position: absolute; inset: 0; pointer-events: none; background: #000; }
+.ytwrap iframe, #ytHost { width: 100%; height: 100%; border: 0; pointer-events: none; }
+.yt-tag { color: #ff5c5c; font-size: 11px; font-weight: 700; }
+.thumb { width: 100%; height: 68px; object-fit: cover; border-radius: 8px; }

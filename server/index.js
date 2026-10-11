@@ -43,6 +43,18 @@ function createApp(options = {}) {
       const r = manager.get(q.get('room'));
       return json(res, 200, { items: r ? r.recommendations() : search.recommend({}) });
     }
+    if (p === '/api/youtube/search') {
+      const key = process.env.YOUTUBE_API_KEY;
+      if (!key) return json(res, 200, { enabled: false, items: [] });
+      const term = (q.get('q') || '').slice(0, 100);
+      if (!term) return json(res, 200, { enabled: true, items: [] });
+      const api = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=12&q=' + encodeURIComponent(term) + '&key=' + encodeURIComponent(key);
+      fetch(api, { signal: AbortSignal.timeout(5000) }).then((r) => r.json()).then((d) => {
+        if (d.error) return json(res, 502, { enabled: true, items: [], error: d.error.message });
+        json(res, 200, { enabled: true, items: (d.items || []).map((x) => ({ ytId: x.id.videoId, title: x.snippet.title, channel: x.snippet.channelTitle })) });
+      }).catch(() => json(res, 502, { enabled: true, items: [], error: 'YouTube search failed' }));
+      return;
+    }
     if (p === '/api/metrics') return json(res, 200, manager.metrics());
     if (p === '/healthz') return json(res, 200, { ok: true });
 
