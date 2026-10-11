@@ -1,0 +1,14 @@
+{
+  "name": "watch-party",
+  "version": "1.0.0",
+  "description": "Real-time watch party: synchronized playback, chat, polls, shared queue and movie discovery.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "loadtest": "node scripts/loadtest.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "dependencies": { "ws": "^8.18.0" }
+}

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watch Party</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍿%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Landing -->
+<main id="landing" class="landing">
+  <div class="card landing-card">
+    <h1>🍿 Watch Party</h1>
+    <p class="muted">Watch together, perfectly in sync.</p>
+    <label>Your name <input id="nameInput" maxlength="24" placeholder="e.g. Alex" autocomplete="nickname"></label>
+    <button id="createBtn" class="primary big">Create a room</button>
+    <div class="or"><span>or join with a code</span></div>
+    <form id="joinForm" class="row">
+      <input id="codeInput" maxlength="12" placeholder="ROOM CODE" autocapitalize="characters" spellcheck="false">
+      <button class="big">Join</button>
+    </form>
+    <p id="landingError" class="error" role="alert"></p>
+  </div>
+</main>
+
+<!-- Room -->
+<div id="roomView" class="room hidden">
+  <header class="topbar">
+    <div class="brand">🍿 <b>Watch Party</b></div>
+    <button id="codeBtn" class="chip" title="Copy invite link">Room <b id="roomCode"></b> · copy link</button>
+    <span id="syncBadge" class="badge">connecting…</span>
+    <span id="hostBadge" class="badge host hidden">👑 You're the host</span>
+    <span class="spacer"></span>
+    <span id="memberCount" class="muted"></span>
+    <button id="leaveBtn" class="ghost">Leave</button>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+
+  <div class="layout">
+    <section class="stage">
+      <div id="player" class="player">
+        <video id="video" playsinline preload="auto"></video>
+        <div id="emptyState" class="empty">
+          <div class="empty-emoji">🎬</div>
+          <h2>Nothing playing yet</h2>
+          <p class="muted">Open <b>Discover</b> and pick a movie — everyone in the room will start together.</p>
+        </div>
+        <div id="startCountdown" class="countdown hidden"></div>
+        <div id="tapOverlay" class="tap hidden"><button class="primary big">▶ Tap to join playback</button><p>Your browser blocked autoplay.</p></div>
+        <div id="spinner" class="spinner hidden"></div>
+        <div id="reactionLayer" class="reaction-layer"></div>
+        <div id="controls" class="controls">
+          <div class="seekwrap">
+            <canvas id="heat" class="heat" height="6"></canvas>
+            <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+          </div>
+          <div class="ctlrow">
+            <button id="playBtn" aria-label="Play/Pause">▶</button>
+            <button id="back10" aria-label="Back 10 seconds" title="Back 10s">⏪</button>
+            <button id="fwd10" aria-label="Forward 10 seconds" title="Forward 10s">⏩</button>
+            <span id="time" class="time">0:00 / 0:00</span>
+            <span class="spacer"></span>
+            <span id="lockNote" class="muted small hidden">🔒 host controls playback</span>
+            <button id="muteBtn" aria-label="Mute" title="Mute (m)">🔊</button>
+            <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+            <button id="fsBtn" aria-label="Fullscreen" title="Fullscreen (f)">⛶</button>
+          </div>
+        </div>
+      </div>
+      <div class="nowplaying">
+        <div><div id="npTitle" class="np-title">—</div><div id="npSub" class="muted small"></div></div>
+        <div class="reactions" id="reactionBar"></div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <nav class="tabs" id="tabs">
+        <button data-tab="chat" class="active">💬 Chat</button>
+        <button data-tab="discover">🔎 Discover</button>
+        <button data-tab="queue">📃 Queue <span id="queueBadge" class="pill hidden"></span></button>
+        <button data-tab="polls">📊 Polls <span id="pollBadge" class="pill hidden"></span></button>
+        <button data-tab="people">👥 People</button>
+      </nav>
+
+      <div id="tab-chat" class="tabpane active">
+        <div id="chatLog" class="chatlog" aria-live="polite"></div>
+        <form id="chatForm" class="row chatform">
+          <input id="chatInput" maxlength="500" placeholder="Say something…" autocomplete="off">
+          <button class="primary">Send</button>
+        </form>
+      </div>
+
+      <div id="tab-discover" class="tabpane">
+        <div class="filters">
+          <input id="q" type="search" placeholder="Search titles, genres, people… (typos OK)">
+          <div id="genreChips" class="chips"></div>
+          <div class="row wrap">
+            <select id="fRating" title="Minimum rating"><option value="">Any rating</option><option value="7">7.0+</option><option value="6">6.0+</option><option value="5">5.0+</option></select>
+            <select id="fLength" title="Length"><option value="">Any length</option><option value="short">Under 5 min</option><option value="long">9+ min</option></select>
+            <select id="fSort" title="Sort"><option value="">Best match</option><option value="rating">Rating</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
+          </div>
+        </div>
+        <div id="discoverBody" class="discover-body"></div>
+        <form id="urlForm" class="urlbox">
+          <input id="urlInput" type="url" placeholder="…or paste a direct video URL (.mp4 / .webm)">
+          <button type="button" id="urlPlay">▶ Play</button><button type="button" id="urlQueue">＋ Queue</button>
+        </form>
+        <div id="pickBar" class="pickbar hidden"><span id="pickCount"></span><button id="pickPoll" class="primary">Start “what next?” poll</button><button id="pickClear" class="ghost">Clear</button></div>
+      </div>
+
+      <div id="tab-queue" class="tabpane"><div id="queueBody"></div></div>
+
+      <div id="tab-polls" class="tabpane">
+        <form id="pollForm" class="card-lite">
+          <input id="pollQ" maxlength="120" placeholder="Ask the room a question…">
+          <div id="pollOpts"><input class="pollOpt" maxlength="60" placeholder="Option 1"><input class="pollOpt" maxlength="60" placeholder="Option 2"></div>
+          <div class="row wrap">
+            <button type="button" id="addOpt" class="ghost">＋ Option</button>
+            <select id="pollDur"><option value="0">No timer</option><option value="30">30 s</option><option value="60">1 min</option><option value="180">3 min</option></select>
+            <button class="primary">Start poll</button>
+          </div>
+        </form>
+        <div id="pollList"></div>
+      </div>
+
+      <div id="tab-people" class="tabpane"><div id="peopleBody"></div></div>
+    </aside>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+<script src="sync-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
