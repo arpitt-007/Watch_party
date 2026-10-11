@@ -21,7 +21,7 @@ test('fuzzy search tolerates typos, transpositions and partial words', () => {
   assert.match(top('inceptoin'), /Inception/);
   assert.match(top('interstelar'), /Interstellar/);
   assert.match(top('nosfratu'), /Nosferatu/);
-  assert.match(top('gangnam'), /Gangnam/);
+  assert.match(top('rick astly'), /Rick Astley/);
   assert.match(top('thriler michael'), /Thriller/);
   assert.strictEqual(searchMovies({ q: 'xyzzyqq' }).length, 0);
 });
