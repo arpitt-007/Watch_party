@@ -20,12 +20,13 @@ function youtubeId(input) {
   }
   return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
 }
-async function youtubeTitle(id) {
+async function youtubeInfo(id) {
   try {
     const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { signal: AbortSignal.timeout(3000) });
-    if (res.ok) return clampStr((await res.json()).title, 100);
-  } catch (e) { /* offline or blocked: fall back to a generic title */ }
-  return '';
+    if (res.ok) return { embeddable: true, title: clampStr((await res.json()).title, 100) };
+    if ([401, 403, 404].includes(res.status)) return { embeddable: false, title: '', status: res.status };
+  } catch (e) { /* offline or blocked: assume embeddable and let the player report errors */ }
+  return { embeddable: null, title: '' };
 }
 
 const rid = (n = 6) => crypto.randomBytes(n).toString('hex');
@@ -173,6 +174,7 @@ class Room {
       case 'control': return this.control(m, msg);
       case 'setVideo': return this.setVideoFrom(m, msg);
       case 'ended': return this.videoEnded(m, msg);
+      case 'unplayable': return this.videoUnplayable(m, msg);
       case 'report': return this.report(m, msg);
       case 'chat': return this.chatMsg(m, msg);
       case 'react': return this.react(m, msg);
@@ -249,8 +251,11 @@ class Room {
     if (!v) return this.err(m, 'bad-video', 'Could not use that video');
     if (!v.needsTitle) return done(v);
     delete v.needsTitle;
-    const finish = (title) => { v.title = v.title || title || 'YouTube video'; done(v); };
-    if (v.title) finish(); else youtubeTitle(v.ytId).then(finish).catch(() => finish());
+    (this.opts.youtubeInfo || youtubeInfo)(v.ytId).then((info) => {
+      if (info.embeddable === false) return this.err(m, 'no-embed', info.status === 404 ? 'That YouTube video is unavailable or private' : 'The owner of that YouTube video does not allow embedding');
+      v.title = v.title || info.title || 'YouTube video';
+      done(v);
+    }).catch(() => { v.title = v.title || 'YouTube video'; done(v); });
   }
 
   startVideo(video, m, why = 'video') {
@@ -281,6 +286,22 @@ class Room {
       this.startVideo(next.video, null, 'auto');
     } else {
       this.playback = { playing: false, pos: exp, at: Date.now(), seq: this.playback.seq };
+      this.pushState('ended', null);
+    }
+  }
+
+  // A client's YouTube player refused the video (embedding disabled, removed, region-locked...): skip it for everyone.
+  videoUnplayable(m, msg) {
+    if (!this.video || msg.token !== this.video.token || this.video.endHandled) return;
+    this.video.endHandled = true;
+    this.sysChat(`"${this.video.title}" can't be played in an embedded player (${m.name} got error ${Number(msg.code) || '?'}) — skipping`);
+    const next = this.orderedPlaylist()[0];
+    if (next) {
+      this.playlist = this.playlist.filter((i) => i.id !== next.id);
+      this.broadcast(this.publicPlaylist());
+      this.startVideo(next.video, null, 'auto');
+    } else {
+      this.playback = { playing: false, pos: 0, at: Date.now(), seq: this.playback.seq };
       this.pushState('ended', null);
     }
   }

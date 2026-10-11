@@ -6,9 +6,14 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test \"test/*.test.js\"",
-    "loadtest": "node scripts/loadtest.js"
+    "loadtest": "node scripts/loadtest.js",
+    "verify-catalog": "node scripts/verify-catalog.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
-  "dependencies": { "ws": "^8.18.0" }
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
 }

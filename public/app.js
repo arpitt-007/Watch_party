@@ -244,7 +244,7 @@
         events: {
           onReady: () => { this.apiReady = true; applyVolume(); if (this.id !== this.created) { this.st = -1; this.p.cueVideoById(this.id); } setTimeout(enforce, 0); },
           onStateChange: (e) => { this.st = e.data; if (e.data === 0) onVideoEnded(); if (e.data === 1) { $('spinner').classList.add('hidden'); $('tapOverlay').classList.add('hidden'); } setTimeout(enforce, 0); },
-          onError: (e) => { $('spinner').classList.add('hidden'); toast([101, 150].includes(e.data) ? 'The owner of this YouTube video disabled embedding.' : 'This YouTube video is unavailable.', true); },
+          onError: (e) => { $('spinner').classList.add('hidden'); if ([2, 100, 101, 150].includes(e.data) && S.video) send({ t: 'unplayable', token: S.video.token, code: e.data }); toast([101, 150].includes(e.data) ? 'The owner of this YouTube video disabled embedding.' : 'This YouTube video is unavailable.', true); },
         },
       });
     }

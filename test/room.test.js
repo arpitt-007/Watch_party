@@ -7,7 +7,9 @@ const { TestClient, createRoom } = require('../scripts/wsclient');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let app, base;
 test.before(async () => {
-  app = createApp({ room: { memberGraceMs: 600, hostGraceMs: 250, startLeadMs: 100 } });
+  // YouTube oEmbed is stubbed so tests need no network: ids starting with 'NoEmbed' behave like embedding-disabled videos.
+  const youtubeInfo = async (id) => (id.startsWith('NoEmbed') ? { embeddable: false, status: 401 } : { embeddable: true, title: '' });
+  app = createApp({ room: { memberGraceMs: 600, hostGraceMs: 250, startLeadMs: 100, youtubeInfo } });
   base = 'http://127.0.0.1:' + (await app.listen(0, '127.0.0.1'));
 });
 test.after(() => app.close());
@@ -248,5 +250,32 @@ test('YouTube: links are parsed (watch / youtu.be / shorts), catalog entries res
   host.send({ t: 'setVideo', url: 'https://evilyoutube.com/watch?v=dQw4w9WgXcQ' }); // not YouTube: treated as a plain URL (loaded in <video>, not an iframe)
   const st3 = await cs[1].next((m) => m.why === 'video' && m.video.source === 'url');
   assert.strictEqual(st3.video.ytId, undefined);
+  cs.forEach((c) => c.close());
+});
+
+test('a video the YouTube player refuses (embedding disabled) is skipped for the whole room', async () => {
+  const { cs, host } = await party(3);
+  host.send({ t: 'setVideo', url: 'https://youtu.be/Zx9pQ2mLw0A', title: 'Blocked' });
+  const st = await cs[1].waitFor((m) => m.why === 'video' && m.video.ytId === 'Zx9pQ2mLw0A');
+  host.send({ t: 'queue.add', catalogId: 'aqz-KE-bpKQ' });
+  await cs[1].waitFor((m) => m.t === 'playlist' && m.items.length);
+  cs[2].send({ t: 'unplayable', token: 'wrong-token', code: 150 }); // stale/bogus reports are ignored
+  await sleep(100);
+  assert.strictEqual(host.state.video.ytId, 'Zx9pQ2mLw0A');
+  cs[2].send({ t: 'unplayable', token: st.video.token, code: 150 });
+  const next = await cs[1].waitFor((m) => m.why === 'auto', 2000);
+  assert.strictEqual(next.video.id, 'aqz-KE-bpKQ');
+  cs.forEach((c) => c.close());
+});
+
+test('pasted YouTube links that do not allow embedding are rejected with a clear error', async () => {
+  const { cs, host } = await party(2);
+  host.send({ t: 'setVideo', url: 'https://www.youtube.com/watch?v=NoEmbedAAAA', title: 'Nope' });
+  const err = await host.waitFor((m) => m.t === 'error' && m.code === 'no-embed');
+  assert.match(err.msg, /embedding/);
+  assert.strictEqual(host.state.video, null, 'room unchanged');
+  host.send({ t: 'queue.add', url: 'https://youtu.be/NoEmbedBBBB' });
+  await sleep(100);
+  assert.strictEqual(host.events.filter((m) => m.t === 'playlist').length, 0);
   cs.forEach((c) => c.close());
 });
