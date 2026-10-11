@@ -5,6 +5,7 @@ A real-time watch-party web app: everyone in a room watches the same video in lo
 ```bash
 npm install
 npm start          # http://localhost:3000
+npm run dev        # same, but restarts automatically when server code changes (use this while developing)
 npm test           # protocol, concurrency, reconnects, search, sync algorithm, keyboard-manager rules
 npm run check      # syntax check of all JS
 npm run loadtest   # latency / convergence / reconnect benchmark (see docs/LATENCY.md)
@@ -87,6 +88,8 @@ Rules: shortcuts never fire while typing in an input, textarea, select or conten
 **Not provided, deliberately:** captions (`C`) and picture-in-picture, because the YouTube IFrame API exposes no reliable way to toggle them; they are neither bound nor listed in the help.
 
 ## Replay
+
+> If Replay (or any other server-side change) seems not to work, check that the server was restarted: the browser reloads client files on refresh, but the Node process keeps running old code until it is restarted. `npm run dev` does that automatically.
 
 When a video ends (and nothing is queued) the room parks at the end and a **Video ended** card appears over the player with **Replay** (and **Play next** if the queue has items). The play button becomes a replay button and Space/K does the same. Replay restarts the whole room from 0:00, for everyone, and re-arms the end-of-video handling so the video can end (and advance the queue) again. In host-only rooms only the host can replay. Dragging the seek bar away from the end also re-arms it. YouTube's own end screen is covered, since it cannot be clicked through the click-through player.
 
