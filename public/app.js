@@ -418,6 +418,7 @@
       if (pb.playing || Math.abs(P.time() - exp) > 0.3) P.seek(exp + (pb.playing ? SyncCore.CFG.seekLead : 0));
     }
     if (!pb.playing) {
+      $('tapOverlay').classList.add('hidden'); // nothing to join while the room is paused
       if (!P.paused()) P.pause();
       if (!P.buffering() && Math.abs(P.time() - exp) > (P === yt ? 0.3 : 0.05)) P.seek(exp);
       if (P.rate() !== 1) P.setRate(1);
@@ -529,13 +530,33 @@
   $('kbdBtn').onclick = () => toggleHelp();
   $('emptyBrowse').onclick = () => { openSidebar(); selectTab('discover', true); };
 
-  // Click / tap on the video itself. On touch the first tap only reveals the controls.
+  // Click / tap on the video itself.
+  //  mouse: click toggles play.
+  //  touch: pointerdown reveals the controls *before* the click fires, so remember whether they were hidden at that moment:
+  //         the first tap only reveals them; a later tap toggles play after a short delay so that a double-tap (seek) never
+  //         also pauses/resumes the video.
+  let lastPointer = 'mouse', idleAtDown = false, tapTimer = null;
+  $('player').addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; idleAtDown = $('player').classList.contains('idle'); }, { capture: true, passive: true });
   $('player').addEventListener('click', (e) => {
     if (e.target !== $('player') && e.target !== v && e.target !== $('ytWrap')) return;
+    if (lastPointer === 'touch') {
+      if (idleAtDown) { idleAtDown = false; showControls(); return; }
+      if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; return; } // 2nd tap of a double-tap: the dblclick handler takes over
+      tapTimer = setTimeout(() => { tapTimer = null; if (S.video) togglePlay(); }, 260);
+      return;
+    }
     if ($('player').classList.contains('idle')) { showControls(); return; }
     if (S.video) togglePlay();
   });
-  $('player').addEventListener('dblclick', (e) => { if (e.target === $('player') || e.target === v) toggleFullscreen(); });
+  $('player').addEventListener('dblclick', (e) => {
+    if (e.target !== $('player') && e.target !== v && e.target !== $('ytWrap')) return;
+    if (lastPointer === 'touch' && S.video) { // double-tap: left third back 10 s, right third forward 10 s, middle fullscreen
+      const r = $('player').getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+      if (x < 0.33) return seekBy(-10);
+      if (x > 0.67) return seekBy(10);
+    }
+    toggleFullscreen();
+  });
   // Controls (including the progress bar) dissolve a few seconds after playback starts and whenever the pointer is idle;
   // any mouse/touch/keyboard activity brings them back, and they stay up while paused or while the pointer is on them.
   const IDLE_MS = 3000;
@@ -545,7 +566,9 @@
     clearTimeout(idleT);
     idleT = setTimeout(() => {
       idleT = null;
-      if ($('controls').matches(':hover') || document.querySelector('dialog[open]')) { armIdle(); return; }
+      // :hover is sticky on touch screens (it stays after a tap), so it only blocks the fade for a real mouse
+      const mouseOverControls = lastPointer !== 'touch' && matchMedia('(hover: hover)').matches && $('controls').matches(':hover');
+      if (mouseOverControls || document.querySelector('dialog[open]')) { armIdle(); return; }
       if (!wantsIdle()) return;
       // Count from when the video really started playing (S.playingSince, set in uiTick), not from when it was requested.
       const playingFor = S.playingSince ? performance.now() - S.playingSince : 0;
@@ -975,7 +998,7 @@
     .add({ id: 'mute', group: 'Audio', label: 'Mute / Unmute', hint: [['M']], keys: [{ key: 'm' }], noRepeat: true, enabled: inRoom, run: toggleMute })
     .add({ id: 'volup', group: 'Audio', label: 'Volume up', hint: [['↑']], keys: [{ key: 'ArrowUp' }], enabled: inRoom, run: () => setVolume(S.vol + 0.05) })
     .add({ id: 'voldown', group: 'Audio', label: 'Volume down', hint: [['↓']], keys: [{ key: 'ArrowDown' }], enabled: inRoom, run: () => setVolume(S.vol - 0.05) })
-    .add({ id: 'fullscreen', group: 'Display', label: 'Toggle fullscreen', hint: [['F']], keys: [{ key: 'f' }], noRepeat: true, enabled: inRoom, run: toggleFullscreen })
+    .add({ id: 'fullscreen', group: 'Display', label: 'Toggle fullscreen', hint: [['F']], keys: [{ key: 'f' }], noRepeat: true, enabled: () => inRoom() && document.fullscreenEnabled, run: toggleFullscreen })
     .add({ id: 'theater', group: 'Display', label: 'Toggle theater mode', hint: [['T']], keys: [{ key: 't' }], noRepeat: true, enabled: inRoom, run: () => setTheater(!S.ui.theater) })
     .add({ id: 'escape', group: 'Display', label: 'Close dialog, exit theater mode or fullscreen', hint: [['Esc']], keys: [{ key: 'Escape' }], inText: true, inModal: true, enabled: inRoom,
       run: () => {
@@ -1015,6 +1038,8 @@
   }
 
   Icons.hydrate(document);
+  if (matchMedia('(pointer: coarse)').matches) chatInput.placeholder = 'Message the room…'; // the "press /" hint is meaningless on touch
+  if (!document.fullscreenEnabled) $('fsBtn').classList.add('hidden'); // e.g. iPhone Safari only supports fullscreen for <video>
   renderVolume();
 
   // Resume after a page reload within the same tab.

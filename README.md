@@ -86,6 +86,18 @@ Rules: shortcuts never fire while typing in an input, textarea, select or conten
 
 **Not provided, deliberately:** captions (`C`) and picture-in-picture, because the YouTube IFrame API exposes no reliable way to toggle them; they are neither bound nor listed in the help.
 
+## Mobile and touch
+
+Checked at 320, 360, 375, 414, 600, 768 px and phone landscape (812x375): no horizontal overflow, and the header, Leave button and message box stay on screen at every size.
+
+* **Portrait phones / small tablets:** the room is one fixed screen (header, player, now-playing + reactions, panel). The page itself never scrolls, so the video can't scroll away; only the panel's contents scroll and the chat box is always pinned at the bottom (it follows the on-screen keyboard via `interactive-widget=resizes-content`). Discover's genre chips become a single sideways-scrolling row and the three filters share one line.
+* **Phone landscape:** video on the left, panel on the right, all inside the screen.
+* **Touch targets:** on touch devices (`pointer: coarse`) every button, tab, chip, option and the seek bar are at least 44 px, inputs are 16 px so iOS doesn't zoom on focus, and hover-only things (tooltips, the volume slider) are replaced by always-visible controls. Safe-area insets are respected for notches and home indicators.
+* **Gestures:** the first tap on a video with hidden controls only reveals them; a later tap toggles play. Double-tap the left third / right third to seek 10 s back / forward, double-tap the middle for fullscreen. A double-tap sends a single seek (no pause/resume blip).
+* **Autoplay blocked:** if the browser refuses to start the video, a "Tap to join playback" prompt appears over the player (only while the room is actually playing).
+* **Fullscreen:** hidden where the browser doesn't offer it for page elements (e.g. iPhone Safari).
+* Keyboard-only features are never the only way to do something; the on-screen buttons cover everything.
+
 ## Protocol (JSON over WebSocket `/ws`)
 
 Client → server: `join`, `ping`, `control{action: play|pause|seek, position, aid}`, `setVideo{catalogId|url}`, `ended{token}`, `report{drift, rtt, buffering, duration, token}`, `chat`, `react`, `queue.add|remove|vote|play`, `poll.create|vote|close`, `host.transfer|kick`, `settings{controlMode}`.
