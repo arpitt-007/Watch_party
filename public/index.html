@@ -90,6 +90,14 @@
           <button id="emptyBrowse" class="btn primary"><i data-icon="search" data-size="16"></i> Browse videos</button>
         </div>
         <div id="startCountdown" class="countdown hidden" aria-live="assertive"></div>
+        <div id="replayOverlay" class="end-card hidden">
+          <span class="empty-ic"><i data-icon="check" data-size="28"></i></span>
+          <h2>Video ended</h2>
+          <div class="row wrap center">
+            <button id="replayBtn" class="btn primary lg"><i data-icon="rotate-ccw"></i> Replay</button>
+            <button id="nextBtn" class="btn lg hidden"><i data-icon="skip"></i> Play next</button>
+          </div>
+        </div>
         <div id="tapOverlay" class="tap hidden"><button class="btn primary lg"><i data-icon="play"></i> Tap to join playback</button><p>Your browser blocked autoplay.</p></div>
         <div id="spinner" class="spinner hidden" role="status" aria-label="Buffering"></div>
         <div id="errorOverlay" class="overlay-msg hidden" role="alert"><i data-icon="alert" data-size="28"></i><p id="errorText"></p></div>

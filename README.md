@@ -86,6 +86,12 @@ Rules: shortcuts never fire while typing in an input, textarea, select or conten
 
 **Not provided, deliberately:** captions (`C`) and picture-in-picture, because the YouTube IFrame API exposes no reliable way to toggle them; they are neither bound nor listed in the help.
 
+## Replay
+
+When a video ends (and nothing is queued) the room parks at the end and a **Video ended** card appears over the player with **Replay** (and **Play next** if the queue has items). The play button becomes a replay button and Space/K does the same. Replay restarts the whole room from 0:00, for everyone, and re-arms the end-of-video handling so the video can end (and advance the queue) again. In host-only rooms only the host can replay. Dragging the seek bar away from the end also re-arms it. YouTube's own end screen is covered, since it cannot be clicked through the click-through player.
+
+Related fix: the client only reports a video's length once the YouTube player has actually loaded that video (it used to report the previous video's length for a moment), and the server replaces a too-short stored length when a longer report arrives.
+
 ## Mobile and touch
 
 Checked at 320, 360, 375, 414, 600, 768 px and phone landscape (812x375): no horizontal overflow, and the header, Leave button and message box stay on screen at every size.

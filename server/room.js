@@ -212,7 +212,11 @@ class Room {
     const cur = this.expectedPos(now);
     if (msg.action === 'play') {
       if (pb.playing) return this.send(m.ws, { t: 'state', pb, video: this.video, why: 'noop', aid: msg.aid || null }); // already playing: no-op, keeps the room steady under concurrent clicks
-      this.playback = { playing: true, pos: cur, at: now, seq: pb.seq };
+      // Pressing play on a video that has ended is "replay": start over, and re-arm the end-of-video handling.
+      const dur = this.video.duration;
+      const atEnd = this.video.endHandled || (dur && cur >= dur - 0.5);
+      if (atEnd) this.video.endHandled = false;
+      this.playback = { playing: true, pos: atEnd ? 0 : cur, at: now, seq: pb.seq };
     } else if (msg.action === 'pause') {
       if (!pb.playing) return this.send(m.ws, { t: 'state', pb, video: this.video, why: 'noop', aid: msg.aid || null });
       this.playback = { playing: false, pos: cur, at: now, seq: pb.seq }; // pause position comes from the server clock, not the client
@@ -221,6 +225,7 @@ class Room {
       if (!Number.isFinite(target)) return this.err(m, 'bad-seek', 'Invalid position');
       const max = this.video.duration || Infinity;
       this.playback = { playing: pb.playing, pos: Math.max(0, Math.min(target, max)), at: now, seq: pb.seq };
+      if (this.playback.pos < max - 3) this.video.endHandled = false; // scrubbed away from the end: it can end (and auto-advance) again
     } else return this.err(m, 'bad-action', 'Unknown action');
     this.pushState(msg.action, m, msg.aid);
   }
@@ -285,7 +290,8 @@ class Room {
       this.broadcast(this.publicPlaylist());
       this.startVideo(next.video, null, 'auto');
     } else {
-      this.playback = { playing: false, pos: exp, at: Date.now(), seq: this.playback.seq };
+      // park exactly at the end (a client may legitimately report 'ended' up to 3 s before the server clock gets there)
+      this.playback = { playing: false, pos: this.video.duration || exp, at: Date.now(), seq: this.playback.seq };
       this.pushState('ended', null);
     }
   }
@@ -312,7 +318,11 @@ class Room {
     if (typeof msg.rtt === 'number') m.rtt = Math.round(msg.rtt);
     m.buffering = !!msg.buffering;
     const d = Number(msg.duration);
-    if (this.video && !this.video.duration && Number.isFinite(d) && d > 0 && d < 172800 && msg.token === this.video.token) this.video.duration = d;
+    if (this.video && Number.isFinite(d) && d > 0 && d < 172800 && msg.token === this.video.token) {
+      // First report wins, except that a clearly longer length replaces it: a player that has not finished loading can
+      // briefly report the previous video's (shorter) length, and a stored length that is too short would clamp seeks.
+      if (!this.video.duration || d > this.video.duration * 1.05) this.video.duration = d;
+    }
     this.healthDirty = true;
   }
   flushHealth() {

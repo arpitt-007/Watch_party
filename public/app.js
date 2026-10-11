@@ -233,7 +233,7 @@
       case 'state': onState(m); break;
       case 'chat': addChat(m.msg); break;
       case 'reaction': onReaction(m); break;
-      case 'playlist': S.queue = m.items; renderQueue(); break;
+      case 'playlist': S.queue = m.items; renderQueue(); renderEnded(); break;
       case 'polls': S.polls = m.polls; renderPolls(); break;
       case 'error': toast(m.msg || 'Something went wrong', 'bad'); break;
       case 'kicked': break;
@@ -264,7 +264,7 @@
     if (m.why === 'noop') { renderControls(); return; }
     const changed = (m.video && (!S.video || m.video.token !== S.video.token)) || (!m.video && S.video);
     if (changed) loadVideo(m.video);
-    if (m.why === 'seek' || m.why === 'video') S.lastSeekAt = -1e9;
+    if (m.why === 'seek' || m.why === 'video' || m.why === 'play') S.lastSeekAt = -1e9;
     enforce();
     renderControls();
     if (m.why === 'play' || m.why === 'pause' || m.why === 'seek') {
@@ -348,7 +348,10 @@
     get state() { try { return this.apiReady ? this.p.getPlayerState() : -1; } catch (e) { return -1; } }
     ready() { return this.apiReady; }
     time() { try { return this.p.getCurrentTime() || 0; } catch (e) { return 0; } }
-    dur() { try { const d = this.p.getDuration(); return d > 0 ? d : null; } catch (e) { return null; } }
+    // After cueVideoById() the player keeps answering with the PREVIOUS video's length until the new one has loaded, so only
+    // trust getDuration() once the player says it is on the video we asked for (otherwise the room learns a wrong length).
+    onCurrentVideo() { try { return this.p.getVideoData().video_id === this.id; } catch (e) { return false; } }
+    dur() { try { if (!this.onCurrentVideo()) return null; const d = this.p.getDuration(); return d > 0 ? d : null; } catch (e) { return null; } }
     paused() { const s = this.state; return s !== 1 && s !== 3; }
     buffering() { const s = this.state; return s === 3 || s === -1 || s === 5; }
     ended() { return this.state === 0; }
@@ -425,7 +428,7 @@
       S.drift = 0; S.buffering = false;
       return;
     }
-    if (P.ended()) return;
+    if (P.ended() && exp >= (dur || Infinity) - 0.5) return; // really at the end; a replay (exp near 0) must continue below
     if (P.paused()) tryPlay();
     if (P.buffering()) { S.buffering = true; return; }
     S.buffering = false;
@@ -533,6 +536,8 @@
   const noFocusSteal = (e) => e.preventDefault(); // clicking a control must not leave focus on it (Space would then re-trigger it)
   ['playBtn', 'back10', 'fwd10', 'muteBtn', 'theaterBtn', 'fsBtn'].forEach((id) => $(id).addEventListener('mousedown', noFocusSteal));
   $('playBtn').onclick = togglePlay;
+  $('replayBtn').onclick = togglePlay; // the server turns "play" on an ended video into a restart from 0
+  $('nextBtn').onclick = () => send({ t: 'queue.play' });
   $('back10').onclick = () => seekBy(-10);
   $('fwd10').onclick = () => seekBy(10);
   $('muteBtn').onclick = toggleMute;
@@ -642,6 +647,16 @@
     $('volume').value = S.muted ? 0 : S.vol;
     $('volume').setAttribute('aria-valuetext', S.muted ? 'Muted' : Math.round(S.vol * 100) + '%');
   }
+  // "Ended": the room is paused at (or within 1.5 s of) the end of the video.
+  const isEnded = () => !!(S.video && S.pb && !S.pb.playing && P.dur() && S.pb.pos >= P.dur() - 1.5);
+  function renderEnded() {
+    const ended = isEnded();
+    if (S.endedShown !== ended) { S.endedShown = ended; renderControls(); } // refresh the Play/Replay button as soon as the state flips (the length may only become known later)
+    $('replayOverlay').classList.toggle('hidden', !ended);
+    $('nextBtn').classList.toggle('hidden', !(ended && S.queue.length && canControl()));
+    $('replayBtn').disabled = !canControl();
+    if (ended) $('tapOverlay').classList.add('hidden');
+  }
   function renderControls() {
     const ok = canControl() && !!S.video;
     for (const id of ['back10', 'fwd10']) $(id).disabled = !ok;
@@ -650,8 +665,11 @@
     $('lockNote').classList.toggle('hidden', canControl());
     const playing = !!(S.pb && S.pb.playing);
     scheduleIdle();
-    swapIcon($('playBtn'), playing ? 'pause' : 'play', 22);
-    $('playBtn').setAttribute('aria-label', playing ? 'Pause' : 'Play'); $('playBtn').dataset.tip = (playing ? 'Pause' : 'Play') + ' (Space)';
+    const ended = isEnded();
+    const label = playing ? 'Pause' : ended ? 'Replay' : 'Play';
+    swapIcon($('playBtn'), playing ? 'pause' : ended ? 'rotate-ccw' : 'play', 22);
+    $('playBtn').setAttribute('aria-label', label); $('playBtn').dataset.tip = label + ' (Space)';
+    renderEnded();
     $('hostBadge').classList.toggle('hidden', !isHost());
     const online = S.members.filter((m) => m.connected).length;
     $('memberCount').textContent = online ? `${online} watching` : '';
@@ -661,7 +679,7 @@
   function uiTick() {
     const d = P.dur();
     if (S.video && !S.dragging && d && P.ready()) {
-      const t = P.time();
+      const t = isEnded() ? d : P.time(); // an ended player rewinds itself to 0; show the full bar instead
       setProgressVisual(clamp(t / d, 0, 1), fmt(t) + ' / ' + fmt(d));
       prog.setAttribute('aria-valuemax', String(Math.round(d))); prog.setAttribute('aria-valuenow', String(Math.round(t)));
       prog.setAttribute('aria-valuetext', fmt(t) + ' of ' + fmt(d));
@@ -671,6 +689,7 @@
     if (live) { if (!S.playingSince) S.playingSince = performance.now(); S.notLiveSince = null; }
     else { if (!S.notLiveSince) S.notLiveSince = performance.now(); if (performance.now() - S.notLiveSince > 1200) S.playingSince = null; }
     renderBadge();
+    if (S.video) renderEnded();
     document.querySelectorAll('[data-closes]').forEach((el) => {
       const left = Math.max(0, Math.ceil((Number(el.dataset.closes) - serverNow()) / 1000));
       el.textContent = left ? `closes in ${left}s` : 'closing…';

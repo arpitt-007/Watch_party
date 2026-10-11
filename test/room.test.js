@@ -297,3 +297,46 @@ test('a catalog video that a player rejects is blocked: hidden from search and r
   assert.ok(JSON.parse(require('fs').readFileSync(process.env.WP_BLOCKED_FILE, 'utf8'))[target], 'persisted to disk');
   cs.forEach((c) => c.close());
 });
+
+test('replay: play on an ended video restarts from 0, and the video can end (and advance the queue) again', async () => {
+  const { cs, host } = await party(2);
+  host.send({ t: 'setVideo', catalogId: 'PVGeM40dABA' });
+  await host.waitFor((m) => m.why === 'video');
+  const token = host.state.video.token;
+  host.send({ t: 'report', pos: 0, drift: 0, duration: 0.2, token }); // 0.2 s video: the end is immediately plausible
+  await sleep(100);
+  host.send({ t: 'ended', token });
+  const ended = await cs[1].waitFor((m) => m.why === 'ended');
+  assert.strictEqual(ended.pb.playing, false);
+  assert.strictEqual(ended.pb.pos, 0.2, 'parked exactly at the end');
+  cs[1].send({ t: 'control', action: 'play', aid: 'replay1' }); // any participant may replay in an open room
+  const again = await host.waitFor((m) => m.aid === 'replay1' && m.why === 'play');
+  assert.strictEqual(again.pb.playing, true);
+  assert.strictEqual(again.pb.pos, 0, 'restarted from the beginning');
+  // the end-of-video handling is re-armed: with a queued video the second ending auto-advances
+  host.send({ t: 'queue.add', catalogId: 'mN0zPOpADL4' });
+  await host.waitFor((m) => m.t === 'playlist' && m.items.length);
+  await sleep(250);
+  host.send({ t: 'ended', token });
+  const next = await cs[1].waitFor((m) => m.why === 'auto', 2000);
+  assert.strictEqual(next.video.id, 'mN0zPOpADL4');
+  cs.forEach((c) => c.close());
+});
+
+test('a too-short stored duration (stale report from a still-loading player) is corrected by a later, longer report', async () => {
+  const { cs, host } = await party(2);
+  host.send({ t: 'setVideo', catalogId: 'eRsGyueVLvQ' });
+  await host.waitFor((m) => m.why === 'video');
+  const token = host.state.video.token;
+  host.send({ t: 'report', pos: 0, drift: 0, duration: 231.5, token }); // previous video's length
+  await sleep(80);
+  host.send({ t: 'control', action: 'seek', position: 500, aid: 'clamped' });
+  const clamped = await host.waitFor((m) => m.aid === 'clamped');
+  assert.ok(clamped.pb.pos <= 231.5, 'clamped to the wrong length (the bug being guarded against)');
+  host.send({ t: 'report', pos: 0, drift: 0, duration: 888, token }); // real length arrives
+  await sleep(80);
+  host.send({ t: 'control', action: 'seek', position: 500, aid: 'ok' });
+  const fixed = await host.waitFor((m) => m.aid === 'ok');
+  assert.strictEqual(fixed.pb.pos, 500);
+  cs.forEach((c) => c.close());
+});
