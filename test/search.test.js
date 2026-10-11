@@ -1,4 +1,6 @@
 'use strict';
+// Isolate from the real server/blocked.json (which records videos that failed in someone's browser).
+process.env.WP_BLOCKED_FILE = require('path').join(require('os').tmpdir(), 'wp-blocked-search-' + process.pid + '.json');
 const test = require('node:test');
 const assert = require('node:assert');
 const { searchMovies, categories, recommend, editDistance } = require('../server/search');
@@ -21,8 +23,8 @@ test('fuzzy search tolerates typos, transpositions and partial words', () => {
   assert.match(top('inceptoin'), /Inception/);
   assert.match(top('interstelar'), /Interstellar/);
   assert.match(top('nosfratu'), /Nosferatu/);
-  assert.match(top('adle helo'), /Adele/);
-  assert.match(top('thriler michael'), /Thriller/);
+  assert.match(top('eminm lose yourslf'), /Lose Yourself/);
+  assert.match(top('metropolus'), /Metropolis/);
   assert.strictEqual(searchMovies({ q: 'xyzzyqq' }).length, 0);
 });
 
@@ -35,7 +37,7 @@ test('search matches genres, tags and channels', () => {
 
 test('filters combine', () => {
   const r = searchMovies({ genres: ['Music'], viewsMin: 1e8 });
-  assert.ok(r.length >= 3 && r.every((m) => m.genres.includes('Music') && m.views >= 1e8));
+  assert.ok(r.length >= 2 && r.every((m) => m.genres.includes('Music') && m.views >= 1e8));
   const s = searchMovies({ durationMax: 300 });
   assert.ok(s.length && s.every((m) => m.durationSec <= 300));
   const both = searchMovies({ genres: ['Sci-Fi', 'Trailer'], allGenres: true });

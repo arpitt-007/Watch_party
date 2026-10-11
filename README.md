@@ -52,7 +52,7 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 
 ## YouTube-only catalog
 
-Everything in the catalog is a real YouTube video (39 titles; every one existed and allowed embedding for the browser that checked it): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 4 official music videos (Queen, Michael Jackson, Adele, Eminem), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
+Everything in the catalog is a real YouTube video (37 titles; every one existed and allowed embedding for the browser that checked it): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 2 official music videos (Queen, Eminem), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
 
 * **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id, looks the title up with YouTube's keyless oEmbed endpoint and uses the YouTube thumbnail as poster. A link to a catalog video resolves to its catalog entry.
 * **Search all of YouTube (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` shows a *Search YouTube* box (only embeddable videos are returned). Without a key the box is hidden. *This path is untested against the live API, since no key was available.*
@@ -104,7 +104,7 @@ docs/LATENCY.md    measurements, test conditions, failure handling
 ```
 
 ## Honest limitations
-* **Catalog is a snapshot** of 39 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
+* **Catalog is a snapshot** of 37 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
 * Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
 * Rooms are in memory (a server restart ends them); no accounts or auth — anyone with the code can join.
 * Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.
