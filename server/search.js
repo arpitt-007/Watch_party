@@ -52,7 +52,7 @@ const index = movies.map((m) => ({
     title: norm(m.title).split(' '),
     genres: norm(m.genres.join(' ')).split(' '),
     tags: norm(m.tags.join(' ')).split(' ').filter(Boolean),
-    people: norm([m.director, ...m.cast].join(' ')).split(' ').filter(Boolean),
+    people: norm(m.channel).split(' ').filter(Boolean),
     description: norm(m.description).split(' ').filter((w) => w.length > 3),
   },
 }));
@@ -82,7 +82,7 @@ function searchMovies(opts = {}) {
   const matchAll = !!opts.allGenres;
   const yearMin = Number.isFinite(opts.yearMin) ? opts.yearMin : -Infinity;
   const yearMax = Number.isFinite(opts.yearMax) ? opts.yearMax : Infinity;
-  const ratingMin = Number.isFinite(opts.ratingMin) ? opts.ratingMin : -Infinity;
+  const viewsMin = Number.isFinite(opts.viewsMin) ? opts.viewsMin : -Infinity;
   const durMin = Number.isFinite(opts.durationMin) ? opts.durationMin : -Infinity;
   const durMax = Number.isFinite(opts.durationMax) ? opts.durationMax : Infinity;
   const exclude = new Set(opts.exclude || []);
@@ -91,7 +91,7 @@ function searchMovies(opts = {}) {
   for (const entry of index) {
     const m = entry.m;
     if (exclude.has(m.id)) continue;
-    if (m.year < yearMin || m.year > yearMax || m.rating < ratingMin || m.durationSec < durMin || m.durationSec > durMax) continue;
+    if (m.year < yearMin || m.year > yearMax || m.views < viewsMin || m.durationSec < durMin || m.durationSec > durMax) continue;
     if (want.length) {
       const have = m.genres.map(norm);
       const ok = matchAll ? want.every((g) => have.includes(g)) : want.some((g) => have.includes(g));
@@ -104,10 +104,10 @@ function searchMovies(opts = {}) {
     }
     rows.push({ m, score });
   }
-  const sort = opts.sort || (qTokens.length ? 'relevance' : 'rating');
+  const sort = opts.sort || (qTokens.length ? 'relevance' : 'views');
   const cmp = {
-    relevance: (a, b) => b.score - a.score || b.m.rating - a.m.rating,
-    rating: (a, b) => b.m.rating - a.m.rating,
+    relevance: (a, b) => b.score - a.score || b.m.views - a.m.views,
+    views: (a, b) => b.m.views - a.m.views,
     year: (a, b) => b.m.year - a.m.year,
     duration: (a, b) => a.m.durationSec - b.m.durationSec,
     title: (a, b) => a.m.title.localeCompare(b.m.title),
@@ -119,14 +119,17 @@ function searchMovies(opts = {}) {
 // Home-screen rows.
 function categories() {
   const rows = [];
-  rows.push({ id: 'top', title: 'Top rated', items: searchMovies({ sort: 'rating' }).slice(0, 8) });
-  rows.push({ id: 'short', title: 'Quick watch (under 5 min)', items: searchMovies({ durationMax: 300, sort: 'rating' }) });
-  rows.push({ id: 'feature', title: 'Settle in (9+ min)', items: searchMovies({ durationMin: 540, sort: 'rating' }) });
-  rows.push({ id: 'new', title: 'Newest', items: searchMovies({ sort: 'year' }).slice(0, 6) });
-  for (const g of genres) {
-    const items = searchMovies({ genres: [g], sort: 'rating' });
-    if (items.length >= 2) rows.push({ id: 'g-' + g, title: g, items });
-  }
+  const add = (id, title, items, min = 2) => { if (items.length >= min) rows.push({ id, title, items }); };
+  add('popular', 'Most viewed', searchMovies({ sort: 'views' }).slice(0, 10));
+  add('movies', 'Full movies (free & public domain)', searchMovies({ genres: ['Full Movie'], sort: 'views' }));
+  add('trailers', 'Movie trailers', searchMovies({ genres: ['Trailer'], sort: 'views' }));
+  add('music', 'Music videos', searchMovies({ genres: ['Music'], sort: 'views' }).slice(0, 12));
+  add('animation', 'Animated films & shorts', searchMovies({ genres: ['Animation'], sort: 'views' }));
+  add('quick', 'Quick watch (under 5 min)', searchMovies({ durationMax: 300, sort: 'views' }).slice(0, 12));
+  add('feature', 'Settle in (20+ min)', searchMovies({ durationMin: 1200, sort: 'views' }));
+  add('new', 'Newest releases', searchMovies({ sort: 'year' }).slice(0, 8));
+  const skip = new Set(['Full Movie', 'Trailer', 'Music', 'Animation', 'Short']);
+  for (const g of genres) if (!skip.has(g)) add('g-' + g, g, searchMovies({ genres: [g], sort: 'views' }), 3);
   return rows;
 }
 
@@ -142,7 +145,7 @@ function recommend({ watched = [], queued = [], liked = [] }, limit = 6) {
   return movies.filter((m) => !seen.has(m.id)).map((m) => {
     const affinity = m.genres.reduce((s, g) => s + (weights[g] || 0), 0) / m.genres.length;
     const top = m.genres.filter((g) => weights[g]).sort((a, b) => weights[b] - weights[a])[0];
-    return { ...m, score: affinity + m.rating / 20, reason: top ? `Because your room likes ${top}` : 'Highly rated' };
+    return { ...m, score: affinity + Math.log10(m.views + 10) / 20, reason: top ? `Because your room likes ${top}` : 'Highly rated' };
   }).sort((a, b) => b.score - a.score).slice(0, limit);
 }
 

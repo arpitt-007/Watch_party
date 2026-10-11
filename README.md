@@ -17,7 +17,7 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 |---|---|
 | Create / join via invite link or room code | `POST /api/rooms`, `/?room=CODE`, case-insensitive codes from an unambiguous alphabet |
 | Synchronised play / pause / seek | server-authoritative playback clock, see *How sync works* |
-| YouTube videos | catalog entries + paste any YouTube link (title looked up via oEmbed) + optional search; played with the YouTube IFrame API, see *YouTube* below |
+| YouTube videos | the whole catalog is YouTube (movies, trailers, music videos, shorts…); paste any link; IFrame-API player, see *YouTube-only catalog* |
 | Movie recommendations, categories, filters, fuzzy search | `server/search.js` (typo-tolerant, Damerau-Levenshtein per token over title / genre / tags / people / description), `/api/categories`, `/api/recommendations` |
 | Emoji reactions, live chat, shared playlists, polls, host transfer | `server/room.js` |
 | Automatic drift detection + correction | `public/sync-core.js` |
@@ -49,13 +49,15 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 6. **Reconnection.** Identity is a per-tab `clientId` (sessionStorage), so a refresh or network blip returns you to the same seat — same name, same host role if within the grace period — with no ghost duplicate.
 7. **Local interference.** Native controls are removed and the player re-asserts the room state if something (a media key, an extension) pauses it behind the app's back.
 
-## YouTube
+## YouTube-only catalog
 
-* **Catalog:** 7 official Blender short films are hosted on YouTube (tagged ▶ YouTube) next to the direct-file titles.
-* **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id and looks up the title with YouTube's keyless oEmbed endpoint.
-* **Search (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` enables the *Search YouTube* box (only embeddable videos are returned). Without a key the box explains how to enable it; links and catalog titles still work. *Search is untested against the live API in this repo, since no key was available.*
-* **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±19–60 ms. The YouTube iframe is click-through (`pointer-events:none`) so every control goes through the room; owners who disabled embedding show a message instead of a player.
-* Requires internet access to youtube.com. Playing YouTube through a custom UI follows YouTube's embedded-player terms; ads shown by YouTube are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync.
+Everything in the catalog is a real YouTube video (55 titles, all checked to exist and allow embedding when the catalog was built): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 19 official music videos (Queen, Michael Jackson, Adele, Billie Eilish, …), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
+
+* **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id, looks the title up with YouTube's keyless oEmbed endpoint and uses the YouTube thumbnail as poster. A link to a catalog video resolves to its catalog entry.
+* **Search all of YouTube (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` shows a *Search YouTube* box (only embeddable videos are returned). Without a key the box is hidden. *This path is untested against the live API, since no key was available.*
+* **Updating the catalog:** edit `server/catalog.json` (id, title, category, year, genres, tags, description, channel, durationSec, views). Sources are third-party uploads; if an uploader deletes a video or disables embedding, the player shows a message for it. Full-movie entries are public-domain re-uploads by third-party channels and are the most likely to disappear.
+* **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±15–60 ms. The iframe is click-through so every control goes through the room.
+* Requires internet access to youtube.com. YouTube's own ads are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync. Non-YouTube direct video URLs still work if pasted (plain `<video>` player), but the UI only advertises YouTube.
 
 ## Protocol (JSON over WebSocket `/ws`)
 
@@ -75,7 +77,7 @@ docs/LATENCY.md    measurements, test conditions, failure handling
 ```
 
 ## Honest limitations
-* **Catalog is small** (15 titles: Blender open movies and CC0 clips, 7 of them via YouTube). Metadata such as ratings is hand-curated. Adding titles = adding objects to `server/catalog.js`; any direct video URL also works. The sources are third-party hosts; if one goes offline the player shows an error (Google's old sample bucket was already dead and was replaced during development).
+* **Catalog is a snapshot** of 55 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
 * Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
 * Rooms are in memory (a server restart ends them); no accounts or auth — anyone with the code can join.
 * Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.

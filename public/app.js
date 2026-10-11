@@ -26,7 +26,8 @@
     return (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
   };
   const hue = (n) => `hsl(${n} 70% 65%)`;
-  const posterStyle = (m) => `background:linear-gradient(135deg,hsl(${m.hue} 55% 38%),hsl(${(m.hue + 40) % 360} 60% 18%))`;
+  const posterStyle = (m) => `${m.thumb ? `background-image:url('${m.thumb}'),` : 'background-image:'}linear-gradient(135deg,hsl(${m.hue} 55% 38%),hsl(${(m.hue + 40) % 360} 60% 18%));background-size:cover;background-position:center`;
+  const fmtViews = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n));
 
   const store = {
     get: (k, area = localStorage) => { try { return area.getItem(k); } catch (e) { return null; } },
@@ -484,11 +485,12 @@
   function movieCard(m, compact) {
     const picked = S.picks.includes(m.id);
     return h('div', { class: 'movie' + (compact ? ' compact' : ''), 'data-id': m.id },
-      h('div', { class: 'poster', style: posterStyle(m) }, m.emoji),
+      h('div', { class: 'poster', style: posterStyle(m) }, m.thumb ? '' : m.emoji),
       h('div', null,
-        h('h5', null, m.title, m.youtube ? h('span', { class: 'yt-tag' }, '  ▶ YouTube') : null),
-        h('div', { class: 'meta' }, `${m.year} · ★ ${m.rating.toFixed(1)} · ${m.durationSec >= 120 ? Math.round(m.durationSec / 60) + ' min' : m.durationSec + ' s'}`),
+        h('h5', null, m.title),
+        h('div', { class: 'meta' }, `${m.year} · ${fmtViews(m.views)} views · ${fmt(m.durationSec)}`),
         h('div', { class: 'meta' }, m.genres.join(' · ')),
+        compact ? null : h('div', { class: 'meta' }, '📺 ' + m.channel),
         compact ? null : h('p', null, m.description),
         m.reason ? h('div', { class: 'why' }, '✨ ' + m.reason) : null,
         h('div', { class: 'acts' },
@@ -532,9 +534,10 @@
         const p = new URLSearchParams();
         if (q) p.set('q', q);
         genres.forEach((g) => p.append('genre', g));
-        if (rating) p.set('ratingMin', rating);
+        if (rating) p.set('viewsMin', rating);
         if (len === 'short') p.set('durMax', 300);
-        if (len === 'long') p.set('durMin', 540);
+        if (len === 'mid') { p.set('durMin', 300); p.set('durMax', 1200); }
+        if (len === 'long') p.set('durMin', 1200);
         if (sort) p.set('sort', sort);
         const res = await fetch('/api/movies?' + p).then((r) => r.json());
         if (gen !== discoverGen) return;
@@ -544,8 +547,9 @@
     } catch (e) { body.replaceChildren(h('p', { class: 'error' }, 'Could not load movies.')); }
   }
   function renderMovieActions() { document.querySelectorAll('.playm').forEach((b) => { b.disabled = !canControl(); }); }
-  const urlOf = () => { const u = $('urlInput').value.trim(); if (!/^https?:\/\//i.test(u)) { toast('Enter a full http(s) video URL', true); return null; } return u; };
+  const urlOf = () => { const u = $('urlInput').value.trim(); if (!/^https?:\/\//i.test(u)) { toast('Paste a full YouTube link (https://…)', true); return null; } return u; };
   // YouTube search (needs YOUTUBE_API_KEY on the server; without it only links and catalog titles are available)
+  fetch('/api/youtube/search?q=').then((r) => r.json()).then((r) => { if (r.enabled) $('ytForm').classList.remove('hidden'); }).catch(() => {});
   const decode = (t) => new DOMParser().parseFromString(t, 'text/html').documentElement.textContent;
   $('ytForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -575,7 +579,7 @@
       h('div', { class: 'row', style: 'justify-content:space-between;margin-bottom:8px' }, h('span', { class: 'muted small' }, 'Sorted by votes · auto-plays next'),
         h('button', { class: 'primary', disabled: !canControl(), onclick: () => send({ t: 'queue.play' }) }, '⏭ Play next')),
       h('div', { class: 'list' }, S.queue.map((it, i) => h('div', { class: 'qitem' + (it.pinned ? ' pinned' : '') },
-        h('div', { class: 'poster', style: posterStyle(it.video) }, it.video.emoji),
+        h('div', { class: 'poster', style: posterStyle(it.video) }, it.video.thumb ? '' : it.video.emoji),
         h('div', null, h('b', null, (i === 0 ? '⏭ ' : '') + it.video.title), h('div', { class: 'muted small' }, `added by ${nameOf(it.addedBy)}${it.pinned ? ' · poll winner' : ''}`)),
         h('div', { class: 'row' },
           h('button', { class: it.voters.includes(S.you) ? 'on' : '', style: it.voters.includes(S.you) ? 'border-color:var(--accent)' : '', title: 'Vote up', onclick: () => send({ t: 'queue.vote', id: it.id }) }, '👍 ' + it.voters.length),

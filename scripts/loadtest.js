@@ -20,7 +20,7 @@ async function makeRoom(base, n) {
   const cs = [];
   for (let i = 0; i < n; i++) cs.push(new TestClient(base, code, 'u' + i, 'lt' + Math.random().toString(36).slice(2, 10) + i));
   await Promise.all(cs.map((c) => c.connect()));
-  cs[0].send({ t: 'setVideo', catalogId: 'bbb' });
+  cs[0].send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await Promise.all(cs.map((c) => c.waitFor((m) => m.t === 'state' && m.why === 'video')));
   return { code, cs };
 }

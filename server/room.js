@@ -230,7 +230,11 @@ class Room {
     }
     if (desc && desc.url) {
       const ytId = youtubeId(desc.url);
-      if (ytId) return { id: null, title: clampStr(desc.title, 100), needsTitle: true, source: 'youtube', ytId, src: 'https://www.youtube.com/watch?v=' + ytId, emoji: '▶️', hue: 0 };
+      if (ytId) {
+        const known = catalog.byId.get(ytId);
+        if (known) return catalog.toVideo(known);
+        return { id: null, title: clampStr(desc.title, 100), needsTitle: true, source: 'youtube', ytId, src: 'https://www.youtube.com/watch?v=' + ytId, thumb: catalog.thumbFor(ytId), emoji: '▶️', hue: 0 };
+      }
       let u;
       try { u = new URL(String(desc.url)); } catch (e) { return null; }
       if (!/^https?:$/.test(u.protocol) || String(desc.url).length > 500) return null;

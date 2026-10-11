@@ -35,7 +35,7 @@ function createApp(options = {}) {
     if (p === '/api/movies') {
       return json(res, 200, { genres: catalog.genres, items: search.searchMovies({
         q: q.get('q') || '', genres: q.getAll('genre'), allGenres: q.get('all') === '1', sort: q.get('sort') || undefined,
-        ratingMin: num(q.get('ratingMin')), yearMin: num(q.get('yearMin')), yearMax: num(q.get('yearMax')),
+        viewsMin: num(q.get('viewsMin')), yearMin: num(q.get('yearMin')), yearMax: num(q.get('yearMax')),
         durationMin: num(q.get('durMin')), durationMax: num(q.get('durMax')) }) });
     }
     if (p === '/api/categories') return json(res, 200, { genres: catalog.genres, rows: search.categories() });

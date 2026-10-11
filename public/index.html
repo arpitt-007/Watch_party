@@ -95,20 +95,20 @@
 
       <div id="tab-discover" class="tabpane">
         <div class="filters">
-          <input id="q" type="search" placeholder="Search titles, genres, people… (typos OK)">
+          <input id="q" type="search" placeholder="Search movies, music, trailers… (typos OK)">
           <div id="genreChips" class="chips"></div>
           <div class="row wrap">
-            <select id="fRating" title="Minimum rating"><option value="">Any rating</option><option value="7">7.0+</option><option value="6">6.0+</option><option value="5">5.0+</option></select>
-            <select id="fLength" title="Length"><option value="">Any length</option><option value="short">Under 5 min</option><option value="long">9+ min</option></select>
-            <select id="fSort" title="Sort"><option value="">Best match</option><option value="rating">Rating</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
+            <select id="fRating" title="Popularity"><option value="">Any popularity</option><option value="1000000">1M+ views</option><option value="10000000">10M+ views</option><option value="100000000">100M+ views</option><option value="1000000000">1B+ views</option></select>
+            <select id="fLength" title="Length"><option value="">Any length</option><option value="short">Under 5 min</option><option value="mid">5–20 min</option><option value="long">20+ min (movies)</option></select>
+            <select id="fSort" title="Sort"><option value="">Best match</option><option value="views">Most viewed</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
           </div>
         </div>
-        <form id="ytForm" class="row"><input id="ytQ" placeholder="Search YouTube…"><button>Search</button></form>
-        <p id="ytHint" class="muted small">▶ YouTube titles are marked in the lists. Paste any YouTube link below to watch it together.</p>
+        <form id="ytForm" class="row hidden"><input id="ytQ" placeholder="Search YouTube…"><button>Search</button></form>
+        <p id="ytHint" class="muted small">Everything here plays from YouTube. You can also paste any YouTube link below.</p>
         <div id="ytResults" class="list"></div>
         <div id="discoverBody" class="discover-body"></div>
         <form id="urlForm" class="urlbox">
-          <input id="urlInput" type="url" placeholder="Paste a YouTube link or direct .mp4 / .webm URL">
+          <input id="urlInput" type="url" placeholder="Paste any YouTube link…">
           <button type="button" id="urlPlay">▶ Play</button><button type="button" id="urlQueue">＋ Queue</button>
         </form>
         <div id="pickBar" class="pickbar hidden"><span id="pickCount"></span><button id="pickPoll" class="primary">Start “what next?” poll</button><button id="pickClear" class="ghost">Clear</button></div>

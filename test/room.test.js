@@ -38,7 +38,7 @@ test('12 users join; first is host; everyone sees the full roster', async () => 
 
 test('play / pause / seek reach every participant with consistent seq and position', async () => {
   const { cs, host } = await party(10);
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await Promise.all(cs.map((c) => c.waitFor((m) => m.t === 'state' && m.why === 'video')));
   await sleep(150); // past the scheduled start
   host.send({ t: 'control', action: 'seek', position: 100, aid: 's1' });
@@ -54,7 +54,7 @@ test('play / pause / seek reach every participant with consistent seq and positi
 
 test('concurrent conflicting actions converge to one state everywhere', async () => {
   const { cs } = await party(10);
-  cs[0].send({ t: 'setVideo', catalogId: 'sintel' });
+  cs[0].send({ t: 'setVideo', catalogId: 'eRsGyueVLvQ' });
   await Promise.all(cs.map((c) => c.waitFor((m) => m.why === 'video')));
   await sleep(150);
   const before = lastPb(cs[0]).seq;
@@ -68,7 +68,7 @@ test('concurrent conflicting actions converge to one state everywhere', async ()
 
 test('duplicate action ids (client retry) are applied once', async () => {
   const { cs, host } = await party(2);
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await cs[1].waitFor((m) => m.why === 'video');
   host.send({ t: 'control', action: 'seek', position: 30, aid: 'dup' });
   host.send({ t: 'control', action: 'seek', position: 30, aid: 'dup' });
@@ -79,7 +79,7 @@ test('duplicate action ids (client retry) are applied once', async () => {
 
 test('late joiner gets a snapshot whose expected position matches the room', async () => {
   const { code, host } = await party(2);
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await host.waitFor((m) => m.why === 'video');
   host.send({ t: 'control', action: 'seek', position: 200, aid: 'l1' });
   await host.waitFor((m) => m.aid === 'l1');
@@ -88,13 +88,13 @@ test('late joiner gets a snapshot whose expected position matches the room', asy
   const pb = late.welcome.pb;
   const expected = pb.pos + (late.welcome.serverNow - pb.at) / 1000;
   assert.ok(pb.playing && expected > 200.6 && expected < 201.6, `expected ${expected}`);
-  assert.strictEqual(late.welcome.video.id, 'bbb');
+  assert.strictEqual(late.welcome.video.id, 'aqz-KE-bpKQ');
   late.close(); host.close();
 });
 
 test('reconnect with the same clientId keeps identity, host role and resyncs', async () => {
   const { code, cs, host } = await party(3);
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await cs[1].waitFor((m) => m.why === 'video');
   host.kill();
   await sleep(100);
@@ -119,7 +119,7 @@ test('host disconnect transfers hosting after grace; unknown member is removed a
 
 test('host transfer, host-only mode and permissions', async () => {
   const { cs, host } = await party(3);
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await cs[1].waitFor((m) => m.why === 'video');
   host.send({ t: 'settings', controlMode: 'host' });
   await cs[1].waitFor((m) => m.t === 'presence' && m.controlMode === 'host');
@@ -139,22 +139,22 @@ test('host transfer, host-only mode and permissions', async () => {
 
 test('queue: add, vote ordering, auto-advance on ended', async () => {
   const { cs, host } = await party(3);
-  host.send({ t: 'setVideo', catalogId: 'jelly' });
+  host.send({ t: 'setVideo', catalogId: 'SkVqJ1SGeL0' });
   await host.waitFor((m) => m.why === 'video');
-  host.send({ t: 'queue.add', catalogId: 'bbbclip' });
-  cs[1].send({ t: 'queue.add', catalogId: 'flower' });
+  host.send({ t: 'queue.add', catalogId: 'mN0zPOpADL4' });
+  cs[1].send({ t: 'queue.add', catalogId: 'PVGeM40dABA' });
   await sleep(100);
   let pl = host.events.filter((m) => m.t === 'playlist').pop().items;
-  cs[2].send({ t: 'queue.vote', id: pl.find((i) => i.video.id === 'flower').id });
+  cs[2].send({ t: 'queue.vote', id: pl.find((i) => i.video.id === 'PVGeM40dABA').id });
   await sleep(100);
   pl = host.events.filter((m) => m.t === 'playlist').pop().items;
-  assert.strictEqual(pl[0].video.id, 'flower', 'more votes sorts first');
+  assert.strictEqual(pl[0].video.id, 'PVGeM40dABA', 'more votes sorts first');
   assert.strictEqual(pl[0].voters.length, 2);
   const token = host.state.video.token;
   host.send({ t: 'report', pos: 0, drift: 0, duration: 15, token });
   host.send({ t: 'ended', token }); // too early for a 15 s clip: ignored
   await sleep(150);
-  assert.strictEqual(host.state.video.id, 'jelly');
+  assert.strictEqual(host.state.video.id, 'SkVqJ1SGeL0');
   await sleep(0);
   const ver = host.state.video;
   assert.ok(ver);
@@ -163,21 +163,21 @@ test('queue: add, vote ordering, auto-advance on ended', async () => {
 
 test('auto-advance picks the top queue item when the video really ended', async () => {
   const { cs, host } = await party(2);
-  host.send({ t: 'setVideo', catalogId: 'flower' }); // 5 s
+  host.send({ t: 'setVideo', catalogId: 'PVGeM40dABA' }); // 5 s
   await host.waitFor((m) => m.why === 'video');
-  cs[1].send({ t: 'queue.add', catalogId: 'bbbclip' });
+  cs[1].send({ t: 'queue.add', catalogId: 'mN0zPOpADL4' });
   const token = host.state.video.token;
   host.send({ t: 'report', pos: 0, drift: 0, duration: 0.2, token }); // a 0.2 s clip, so the end is plausible immediately
   await sleep(100);
   host.send({ t: 'ended', token });
   const st = await cs[1].waitFor((m) => m.why === 'auto', 2000);
-  assert.strictEqual(st.video.id, 'bbbclip');
+  assert.strictEqual(st.video.id, 'mN0zPOpADL4');
   cs.forEach((c) => c.close());
 });
 
 test('polls: vote, change vote, close picks winner, "next" poll pins the winner in the queue', async () => {
   const { cs, host } = await party(4);
-  host.send({ t: 'poll.create', kind: 'next', question: 'What next?', options: ['bbb', 'sintel', 'tears'] });
+  host.send({ t: 'poll.create', kind: 'next', question: 'What next?', options: ['aqz-KE-bpKQ', 'eRsGyueVLvQ', 'R6MlUcmOul8'] });
   const created = await cs[1].waitFor((m) => m.t === 'polls');
   const poll = created.polls[0];
   const [a, b] = poll.options;
@@ -194,7 +194,7 @@ test('polls: vote, change vote, close picks winner, "next" poll pins the winner 
   host.send({ t: 'poll.close', id: poll.id });
   await host.waitFor((m) => m.t === 'polls' && m.polls[0].closed);
   const pl = (await host.waitFor((m) => m.t === 'playlist')).items;
-  assert.strictEqual(pl[0].video.id, 'sintel');
+  assert.strictEqual(pl[0].video.id, 'eRsGyueVLvQ');
   assert.ok(pl[0].pinned);
   cs.forEach((c) => c.close());
 });
@@ -211,7 +211,7 @@ test('chat, reactions (with timeline bins) and flood protection', async () => {
   host.send({ t: 'chat', text: '<img src=x onerror=alert(1)>' });
   const c = await cs[1].waitFor((m) => m.t === 'chat' && m.msg.from === host.clientId);
   assert.strictEqual(c.msg.text, '<img src=x onerror=alert(1)>', 'server stores text verbatim; client renders via textContent');
-  host.send({ t: 'setVideo', catalogId: 'bbb' });
+  host.send({ t: 'setVideo', catalogId: 'aqz-KE-bpKQ' });
   await host.waitFor((m) => m.why === 'video');
   cs[1].send({ t: 'react', emoji: '🔥' });
   cs[2].send({ t: 'react', emoji: '💩' }); // not whitelisted
@@ -234,13 +234,13 @@ test('same clientId in a second connection replaces the first (no ghost members)
 
 test('YouTube: links are parsed (watch / youtu.be / shorts), catalog entries resolve, lookalike hosts are rejected', async () => {
   const { cs, host } = await party(2);
-  host.send({ t: 'setVideo', url: 'https://youtu.be/dQw4w9WgXcQ?si=x', title: 'Never' });
+  host.send({ t: 'setVideo', url: 'https://youtu.be/Zx9pQ2mLw0A?si=x', title: 'Never' });
   const st = await cs[1].waitFor((m) => m.why === 'video');
   assert.strictEqual(st.video.source, 'youtube');
-  assert.strictEqual(st.video.ytId, 'dQw4w9WgXcQ');
+  assert.strictEqual(st.video.ytId, 'Zx9pQ2mLw0A');
   assert.strictEqual(st.video.title, 'Never');
-  host.send({ t: 'setVideo', catalogId: 'spring' });
-  const st2 = await cs[1].next((m) => m.why === 'video' && m.video.id === 'spring');
+  host.send({ t: 'setVideo', url: 'https://www.youtube.com/watch?v=WhWc3b3KhnY' }); // a catalog video pasted as a link resolves to its catalog entry
+  const st2 = await cs[1].next((m) => m.why === 'video' && m.video.id === 'WhWc3b3KhnY');
   assert.strictEqual(st2.video.ytId, 'WhWc3b3KhnY');
   host.send({ t: 'queue.add', url: 'https://www.youtube.com/shorts/abcdefghijk', title: 'Short' });
   const pl = await cs[1].waitFor((m) => m.t === 'playlist' && m.items.length);
