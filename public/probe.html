@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalog check · Watch Party</title>
+<style>
+  body { margin: 0; padding: 20px; background: #0e0f14; color: #eceef6; font: 14px/1.5 system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; } .muted { color: #9096ad; }
+  #bar { height: 8px; background: #2b2f42; border-radius: 4px; margin: 12px 0; overflow: hidden; } #fill { height: 100%; width: 0; background: #7c5cff; transition: width .3s; }
+  #players { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; } #players > div { width: 240px; height: 135px; background: #000; }
+  table { border-collapse: collapse; width: 100%; max-width: 900px; } td { padding: 4px 8px; border-bottom: 1px solid #2b2f42; }
+  .ok { color: #3ddc97; } .bad { color: #ff6b6b; } .slow { color: #ffc857; }
+  button { background: #7c5cff; border: 0; color: #fff; padding: 8px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Catalog check</h1>
+<p class="muted">Plays every catalog video (muted) in <b>this browser</b> and records the ones YouTube refuses to embed here. Keep this tab in front until it finishes. Failed videos are hidden from Discover right away; run <code>npm run prune</code> to delete them from the catalog file.</p>
+<button id="go">Start check</button> <span id="status" class="muted"></span>
+<div id="bar"><div id="fill"></div></div>
+<div id="players"></div>
+<table id="rows"></table>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const items = await fetch('/api/movies?sort=views').then((r) => r.json()).then((r) => r.items);
+  const rows = new Map();
+  for (const m of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td class="muted"></td><td></td>';
+    tr.children[0].textContent = m.title; tr.children[1].textContent = m.channel; tr.children[2].textContent = 'waiting';
+    $('rows').append(tr); rows.set(m.id, tr.children[2]);
+  }
+  $('status').textContent = items.length + ' videos in the catalog';
+  function ytApi() {
+    return new Promise((res) => { if (window.YT && YT.Player) return res(); window.onYouTubeIframeAPIReady = res; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.append(s); });
+  }
+  function probe(m) {
+    return new Promise((resolve) => {
+      const slot = document.createElement('div'); const inner = document.createElement('div'); slot.append(inner); $('players').append(slot);
+      let done = false, p;
+      const fin = (r) => { if (done) return; done = true; try { p.destroy(); } catch (e) { /* ignore */ } slot.remove(); resolve(r); };
+      p = new YT.Player(inner, { width: 240, height: 135, videoId: m.ytId, playerVars: { controls: 0, playsinline: 1, origin: location.origin },
+        events: { onReady: (e) => { e.target.mute(); e.target.playVideo(); },
+          onStateChange: (e) => { if (e.data === 1) fin({ ok: true }); },
+          onError: (e) => fin({ ok: false, code: e.data }) } });
+      setTimeout(() => fin({ ok: null }), 20000); // never started and never errored: inconclusive
+    });
+  }
+  $('go').onclick = async () => {
+    $('go').disabled = true;
+    await ytApi();
+    const failed = [], slow = [];
+    let n = 0, i = 0;
+    async function worker() {
+      while (i < items.length) {
+        const m = items[i++]; const cell = rows.get(m.id); cell.textContent = 'testing…';
+        const r = await probe(m);
+        n++; $('fill').style.width = (n / items.length * 100) + '%'; $('status').textContent = n + ' / ' + items.length;
+        if (r.ok) { cell.textContent = '✓ plays'; cell.className = 'ok'; }
+        else if (r.ok === false) { cell.textContent = '✗ blocked (error ' + r.code + ')'; cell.className = 'bad'; failed.push({ id: m.id, code: r.code }); }
+        else { cell.textContent = '? did not start in 20 s (not blocked)'; cell.className = 'slow'; slow.push(m.id); }
+      }
+    }
+    await Promise.all([worker(), worker(), worker()]);
+    if (failed.length) await fetch('/api/blocked', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: failed }) });
+    $('status').textContent = 'Done: ' + (items.length - failed.length - slow.length) + ' play, ' + failed.length + ' blocked' + (slow.length ? ', ' + slow.length + ' inconclusive' : '') + (failed.length ? '. Blocked videos are now hidden; run npm run prune to remove them from the catalog.' : '.');
+  };
+})();
+</script>
+</body>
+</html>

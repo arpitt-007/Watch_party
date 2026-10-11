@@ -7,7 +7,8 @@
     "start": "node server/index.js",
     "test": "node --test \"test/*.test.js\"",
     "loadtest": "node scripts/loadtest.js",
-    "verify-catalog": "node scripts/verify-catalog.js"
+    "verify-catalog": "node scripts/verify-catalog.js",
+    "prune": "node scripts/prune-catalog.js"
   },
   "engines": {
     "node": ">=18"

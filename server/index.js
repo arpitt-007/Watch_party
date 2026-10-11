@@ -55,6 +55,18 @@ function createApp(options = {}) {
       }).catch(() => json(res, 502, { enabled: true, items: [], error: 'YouTube search failed' }));
       return;
     }
+    if (req.method === 'POST' && p === '/api/blocked') {
+      let body = '';
+      req.on('data', (c) => { body += c; if (body.length > 8192) req.destroy(); });
+      req.on('end', () => {
+        try {
+          const items = JSON.parse(body).items || [];
+          const added = items.filter((x) => catalog.block(String(x.id), x.code)).length;
+          json(res, 200, { added });
+        } catch (e) { json(res, 400, { error: 'bad request' }); }
+      });
+      return;
+    }
     if (p === '/api/metrics') return json(res, 200, manager.metrics());
     if (p === '/healthz') return json(res, 200, { ok: true });
 
