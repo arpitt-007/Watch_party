@@ -294,6 +294,7 @@ class Room {
   videoUnplayable(m, msg) {
     if (!this.video || msg.token !== this.video.token || this.video.endHandled) return;
     this.video.endHandled = true;
+    if (this.video.id) catalog.block(this.video.id, msg.code);
     this.sysChat(`"${this.video.title}" can't be played in an embedded player (${m.name} got error ${Number(msg.code) || '?'}) — skipping`);
     const next = this.orderedPlaylist()[0];
     if (next) {

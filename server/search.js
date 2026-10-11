@@ -1,5 +1,6 @@
 'use strict';
-const { movies, genres } = require('./catalog');
+const catalog = require('./catalog');
+const { movies, genres } = catalog;
 
 const norm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -90,7 +91,7 @@ function searchMovies(opts = {}) {
   const rows = [];
   for (const entry of index) {
     const m = entry.m;
-    if (exclude.has(m.id)) continue;
+    if (exclude.has(m.id) || catalog.blocked.has(m.id)) continue;
     if (m.year < yearMin || m.year > yearMax || m.views < viewsMin || m.durationSec < durMin || m.durationSec > durMax) continue;
     if (want.length) {
       const have = m.genres.map(norm);
@@ -142,7 +143,7 @@ function recommend({ watched = [], queued = [], liked = [] }, limit = 6) {
   });
   bump(watched, 2); bump(queued, 1); bump(liked, 1.5);
   const seen = new Set(watched);
-  return movies.filter((m) => !seen.has(m.id)).map((m) => {
+  return movies.filter((m) => !seen.has(m.id) && !catalog.blocked.has(m.id)).map((m) => {
     const affinity = m.genres.reduce((s, g) => s + (weights[g] || 0), 0) / m.genres.length;
     const top = m.genres.filter((g) => weights[g]).sort((a, b) => weights[b] - weights[a])[0];
     return { ...m, score: affinity + Math.log10(m.views + 10) / 20, reason: top ? `Because your room likes ${top}` : 'Highly rated' };

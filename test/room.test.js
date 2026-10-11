@@ -1,4 +1,5 @@
 'use strict';
+process.env.WP_BLOCKED_FILE = require('path').join(require('os').tmpdir(), 'wp-blocked-' + process.pid + '.json');
 const test = require('node:test');
 const assert = require('node:assert');
 const { createApp } = require('../server/index');
@@ -277,5 +278,22 @@ test('pasted YouTube links that do not allow embedding are rejected with a clear
   host.send({ t: 'queue.add', url: 'https://youtu.be/NoEmbedBBBB' });
   await sleep(100);
   assert.strictEqual(host.events.filter((m) => m.t === 'playlist').length, 0);
+  cs.forEach((c) => c.close());
+});
+
+test('a catalog video that a player rejects is blocked: hidden from search and recommendations', async () => {
+  const catalog = require('../server/catalog');
+  const { searchMovies } = require('../server/search');
+  const target = 'SkVqJ1SGeL0'; // Caminandes 3
+  assert.ok(searchMovies({ q: 'llamigos' }).length === 1);
+  const { cs, host } = await party(2);
+  host.send({ t: 'setVideo', catalogId: target });
+  const st = await cs[1].waitFor((m) => m.why === 'video' && m.video.id === target);
+  cs[1].send({ t: 'unplayable', token: st.video.token, code: 101 });
+  await cs[0].waitFor((m) => m.t === 'chat' && /can't be played/.test(m.msg.text || ''));
+  assert.ok(catalog.blocked.has(target));
+  assert.strictEqual(searchMovies({ q: 'llamigos' }).length, 0);
+  assert.ok(!searchMovies({}).some((m) => m.id === target));
+  assert.ok(JSON.parse(require('fs').readFileSync(process.env.WP_BLOCKED_FILE, 'utf8'))[target], 'persisted to disk');
   cs.forEach((c) => c.close());
 });
