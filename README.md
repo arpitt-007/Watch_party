@@ -63,14 +63,14 @@ Everything in the catalog is a real YouTube video (55 titles, all checked to exi
 
 Client → server: `join`, `ping`, `control{action: play|pause|seek, position, aid}`, `setVideo{catalogId|url}`, `ended{token}`, `report{drift, rtt, buffering, duration, token}`, `chat`, `react`, `queue.add|remove|vote|play`, `poll.create|vote|close`, `host.transfer|kick`, `settings{controlMode}`.
 Server → client: `welcome` (snapshot), `state`, `presence`, `health`, `chat`, `reaction`, `playlist`, `polls`, `pong`, `error`, `kicked`.
-HTTP: `POST /api/rooms`, `GET /api/rooms/:code`, `GET /api/movies?q=&genre=&ratingMin=&durMin=&durMax=&sort=`, `GET /api/categories`, `GET /api/recommendations?room=`, `GET /api/metrics`.
+HTTP: `POST /api/rooms`, `GET /api/rooms/:code`, `GET /api/movies?q=&genre=&viewsMin=&durMin=&durMax=&sort=`, `GET /api/categories`, `GET /api/recommendations?room=`, `GET /api/metrics`.
 
 ## Layout
 
 ```
 server/index.js    HTTP + WebSocket, rate limiting, heartbeats
 server/room.js     room state machine: playback, members, host, queue, polls, reactions
-server/catalog.js  movie data;  server/search.js  fuzzy search, filters, categories, recommendations
+server/catalog.js + catalog.json  YouTube video data;  server/search.js  fuzzy search, filters, categories, recommendations
 public/            vanilla JS client (sync-core.js is shared with Node tests)
 test/              node:test suites;  scripts/  load test, headless client, drift simulator
 docs/LATENCY.md    measurements, test conditions, failure handling
