@@ -95,7 +95,7 @@ Checked at 320, 360, 375, 414, 600, 768 px and phone landscape (812x375): no hor
 * **Touch targets:** on touch devices (`pointer: coarse`) every button, tab, chip, option and the seek bar are at least 44 px, inputs are 16 px so iOS doesn't zoom on focus, and hover-only things (tooltips, the volume slider) are replaced by always-visible controls. Safe-area insets are respected for notches and home indicators.
 * **Gestures:** the first tap on a video with hidden controls only reveals them; a later tap toggles play. Double-tap the left third / right third to seek 10 s back / forward, double-tap the middle for fullscreen. A double-tap sends a single seek (no pause/resume blip).
 * **Autoplay blocked:** if the browser refuses to start the video, a "Tap to join playback" prompt appears over the player (only while the room is actually playing).
-* **Fullscreen:** hidden where the browser doesn't offer it for page elements (e.g. iPhone Safari).
+* **Fullscreen:** the button is always there. It uses the browser's real Fullscreen API where available; on iPhone Safari (which only allows fullscreen for bare <video> elements, not for our player with its shared controls) or when a browser refuses, the player expands to fill the whole screen instead (rotate the phone for a landscape picture; Esc, the F key or the same button exits). Android Chrome additionally tries to lock landscape.
 * Keyboard-only features are never the only way to do something; the on-screen buttons cover everything.
 
 ## Protocol (JSON over WebSocket `/ws`)

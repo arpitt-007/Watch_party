@@ -174,7 +174,7 @@
     if (S.ws) { try { S.ws.close(); } catch (e) { /* already closed */ } }
     html5.clear(); yt.clear();
     S.video = null; S.pb = null; S.members = []; S.queue = []; S.polls = []; S.chat = []; S.bins = {}; S.picks = []; S.connected = false; S.everConnected = false; S.unread = 0; S.lastMsg = null;
-    setTheater(false); setSidebar(true);
+    setPseudoFs(false); setTheater(false); setSidebar(true);
     store.del('wp_room');
     history.replaceState(null, '', location.pathname);
     document.body.classList.remove('in-room');
@@ -487,13 +487,26 @@
     applyVolume(); renderVolume(); store.set('wp_vol', String(S.vol)); store.set('wp_muted', S.muted ? '1' : '0');
     osd(S.muted ? 'volume-x' : 'volume-2', S.muted ? 'Muted' : 'Volume ' + Math.round(S.vol * 100) + '%');
   }
+  // Fullscreen: the real Fullscreen API where the browser offers it for page elements; otherwise (iPhone Safari, embedded
+  // webviews, or when the browser refuses) a "pseudo" fullscreen where the player simply fills the whole screen.
+  const isFullscreen = () => !!document.fullscreenElement || S.ui.pseudoFs;
+  function setPseudoFs(on) {
+    if (on === !!S.ui.pseudoFs) return;
+    S.ui.pseudoFs = on;
+    $('player').classList.toggle('pseudo-fs', on);
+    document.body.classList.toggle('pseudo-fs-on', on);
+    if (on && screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { /* only allowed in real fullscreen / installed apps */ });
+    if (!on && screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+    renderFullscreen(); showControls();
+  }
   function toggleFullscreen() {
     if (document.fullscreenElement) { document.exitFullscreen(); return; }
-    if (!document.fullscreenEnabled) { toast('Fullscreen is not available in this browser.', 'warn'); return; }
-    $('player').requestFullscreen().catch(() => toast('Fullscreen was blocked by the browser.', 'warn'));
+    if (S.ui.pseudoFs) { setPseudoFs(false); return; }
+    if (!document.fullscreenEnabled) { setPseudoFs(true); return; }
+    $('player').requestFullscreen().catch(() => setPseudoFs(true)); // refused (permissions, iframe policy...): fall back
   }
   function renderFullscreen() {
-    const on = !!document.fullscreenElement;
+    const on = isFullscreen();
     swapIcon($('fsBtn'), on ? 'minimize' : 'maximize', 20);
     $('fsBtn').setAttribute('aria-label', on ? 'Exit fullscreen' : 'Fullscreen'); $('fsBtn').dataset.tip = on ? 'Exit fullscreen (F)' : 'Fullscreen (F)';
     drawHeat();
@@ -998,12 +1011,13 @@
     .add({ id: 'mute', group: 'Audio', label: 'Mute / Unmute', hint: [['M']], keys: [{ key: 'm' }], noRepeat: true, enabled: inRoom, run: toggleMute })
     .add({ id: 'volup', group: 'Audio', label: 'Volume up', hint: [['↑']], keys: [{ key: 'ArrowUp' }], enabled: inRoom, run: () => setVolume(S.vol + 0.05) })
     .add({ id: 'voldown', group: 'Audio', label: 'Volume down', hint: [['↓']], keys: [{ key: 'ArrowDown' }], enabled: inRoom, run: () => setVolume(S.vol - 0.05) })
-    .add({ id: 'fullscreen', group: 'Display', label: 'Toggle fullscreen', hint: [['F']], keys: [{ key: 'f' }], noRepeat: true, enabled: () => inRoom() && document.fullscreenEnabled, run: toggleFullscreen })
+    .add({ id: 'fullscreen', group: 'Display', label: 'Toggle fullscreen', hint: [['F']], keys: [{ key: 'f' }], noRepeat: true, enabled: inRoom, run: toggleFullscreen })
     .add({ id: 'theater', group: 'Display', label: 'Toggle theater mode', hint: [['T']], keys: [{ key: 't' }], noRepeat: true, enabled: inRoom, run: () => setTheater(!S.ui.theater) })
     .add({ id: 'escape', group: 'Display', label: 'Close dialog, exit theater mode or fullscreen', hint: [['Esc']], keys: [{ key: 'Escape' }], inText: true, inModal: true, enabled: inRoom,
       run: () => {
         if (document.querySelector('dialog[open]')) return false; // the native dialog closes itself
         if (document.fullscreenElement) { document.exitFullscreen(); return true; }
+        if (S.ui.pseudoFs) { setPseudoFs(false); return true; }
         if (S.ui.theater && S.ui.sidebar) { setSidebar(false); return true; }
         if (S.ui.theater) { setTheater(false); return true; }
         const a = document.activeElement;
@@ -1035,11 +1049,11 @@
     sm.detach();
     for (const d of document.querySelectorAll('dialog[open]')) d.close();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    setPseudoFs(false);
   }
 
   Icons.hydrate(document);
   if (matchMedia('(pointer: coarse)').matches) chatInput.placeholder = 'Message the room…'; // the "press /" hint is meaningless on touch
-  if (!document.fullscreenEnabled) $('fsBtn').classList.add('hidden'); // e.g. iPhone Safari only supports fullscreen for <video>
   renderVolume();
 
   // Resume after a page reload within the same tab.

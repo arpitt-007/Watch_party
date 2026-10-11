@@ -125,6 +125,8 @@ body.in-room .landing { display: none; }
 
 /* ===== Player ===== */
 .player { position: relative; background: #000; border-radius: var(--r); overflow: hidden; aspect-ratio: 16 / 9; width: 100%; max-height: calc(100dvh - 190px); margin: 0 auto; box-shadow: var(--shadow); border: 1px solid var(--border); outline: none; container-type: inline-size; }
+.player.pseudo-fs { position: fixed; inset: 0; z-index: 1000; width: 100vw; height: 100vh; height: 100dvh; max-height: none !important; aspect-ratio: auto; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+body.pseudo-fs-on { overflow: hidden; }
 .player:fullscreen { max-height: none; border-radius: 0; border: 0; aspect-ratio: auto; }
 .player video { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
 .ytwrap { position: absolute; inset: 0; pointer-events: none; background: #000; }
