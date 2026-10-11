@@ -5,7 +5,8 @@ A real-time watch-party web app: everyone in a room watches the same video in lo
 ```bash
 npm install
 npm start          # http://localhost:3000
-npm test           # 23 tests: protocol, concurrency, reconnects, search, sync algorithm
+npm test           # protocol, concurrency, reconnects, search, sync algorithm, keyboard-manager rules
+npm run check      # syntax check of all JS
 npm run loadtest   # latency / convergence / reconnect benchmark (see docs/LATENCY.md)
 ```
 
@@ -51,15 +52,39 @@ Open the app in two browser windows (or on two machines on your LAN: `http://<yo
 
 ## YouTube-only catalog
 
-Everything in the catalog is a real YouTube video (52 titles, all checked to exist and allow embedding when the catalog was built): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 19 official music videos (Queen, Michael Jackson, Adele, Billie Eilish, …), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
+Everything in the catalog is a real YouTube video (39 titles; every one existed and allowed embedding for the browser that checked it): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 4 official music videos (Queen, Michael Jackson, Adele, Eminem), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
 
 * **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id, looks the title up with YouTube's keyless oEmbed endpoint and uses the YouTube thumbnail as poster. A link to a catalog video resolves to its catalog entry.
 * **Search all of YouTube (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` shows a *Search YouTube* box (only embeddable videos are returned). Without a key the box is hidden. *This path is untested against the live API, since no key was available.*
-* **Embedding is enforced, not assumed:** (1) every catalog video is verified by `npm run verify-catalog` (exists, playable, `playableInEmbed`, oEmbed OK, not age-gated); all 55 pass and all 55 also loaded in a real YouTube IFrame player without errors. (2) A pasted link is checked with oEmbed first; videos whose owner disabled embedding, or that are private/removed, are rejected with a message. (3) If a viewer's player still reports error 2/100/101/150 at play time (e.g. a region lock or an owner restriction that only applies to some viewers), the room skips to the next queued video **and the video is blocked**: it disappears from Discover and recommendations and stays hidden across restarts (`server/blocked.json`, git-ignored; delete the file to reset). This is how the catalog adapts to your audience's regions, which cannot be checked from the server.
+* **Embedding is enforced, not assumed:** (1) every catalog video is verified by `npm run verify-catalog` (exists, playable, `playableInEmbed`, oEmbed OK, not age-gated); server-side checks cannot see every restriction: 13 music videos passed them but YouTube refused to embed them in a real browser (error 150), so they were removed using `/probe.html`. (2) A pasted link is checked with oEmbed first; videos whose owner disabled embedding, or that are private/removed, are rejected with a message. (3) If a viewer's player still reports error 2/100/101/150 at play time (e.g. a region lock or an owner restriction that only applies to some viewers), the room skips to the next queued video **and the video is blocked**: it disappears from Discover and recommendations and stays hidden across restarts (`server/blocked.json`, git-ignored; delete the file to reset). This is how the catalog adapts to your audience's regions, which cannot be checked from the server.
 * **Checking in your own browser:** open `http://localhost:3000/probe.html` (keep the tab in front). It plays every catalog video muted, marks the ones YouTube refuses to embed *for you* (errors 2/100/101/150), hides them immediately, and `npm run prune` then deletes them from `server/catalog.json`. Server-side checks cannot see every restriction (e.g. Gangnam Style and See You Again passed them but were refused in a real player, and were removed).
 * **Updating the catalog:** edit `server/catalog.json` (id, title, category, year, genres, tags, description, channel, durationSec, views). Sources are third-party uploads; if an uploader deletes a video or disables embedding, the player shows a message for it. Full-movie entries are public-domain re-uploads by third-party channels and are the most likely to disappear.
 * **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±15–60 ms. The iframe is click-through so every control goes through the room.
 * Requires internet access to youtube.com. YouTube's own ads are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync. Non-YouTube direct video URLs still work if pasted (plain `<video>` player), but the UI only advertises YouTube.
+
+## Interface and keyboard shortcuts
+
+Dark, responsive UI (desktop, tablet, phone) with a landing page, a room view and a custom player control bar. Icons are an inline Lucide-style SVG set (`public/icons.js`); there are no external UI dependencies or build step. Side panel (Chat / Discover / Queue / Polls / People) can be hidden, and **theater mode** gives the player the full width with the panel as an overlay. On-screen indicators confirm play, pause, seek, mute and volume (including what other people did), the seek bar shows a time preview on hover, and reaction hot-spots are drawn on the timeline.
+
+All shortcuts live in one manager (`public/shortcuts.js`) and act on the real player. They are also reachable with the mouse; nothing is keyboard-only. Press **?** in a room to see the same list (generated from the bindings, so it only shows what is supported).
+
+| Keys | Action |
+|---|---|
+| Space or K | Play / pause (synchronised for the room) |
+| ← / → | Seek 5 s back / forward |
+| Shift+← / Shift+→, J / L | Seek 10 s back / forward |
+| M | Mute / unmute |
+| ↑ / ↓ | Volume up / down |
+| F | Fullscreen |
+| T | Theater mode |
+| Esc | Close dialog, then exit theater / fullscreen, or leave a text field |
+| / | Focus the chat box |
+| Enter, Ctrl/Cmd+Enter | Send message (Shift+Enter for a new line) |
+| ? | Show / hide the shortcut help |
+
+Rules: shortcuts never fire while typing in an input, textarea, select or contenteditable (except Esc and Ctrl/Cmd+Enter in the composer); while a dialog is open only Esc and ? work; Space/Enter on a focused button and arrows on sliders/tabs keep their native behaviour; Ctrl/Cmd/Alt combinations are left to the browser; held keys repeat only for seeks and volume. In a host-only room non-hosts get a clear message instead of a silent no-op, and local actions (mute, volume, theater) still work.
+
+**Not provided, deliberately:** captions (`C`) and picture-in-picture, because the YouTube IFrame API exposes no reliable way to toggle them; they are neither bound nor listed in the help.
 
 ## Protocol (JSON over WebSocket `/ws`)
 
@@ -73,13 +98,13 @@ HTTP: `POST /api/rooms`, `GET /api/rooms/:code`, `GET /api/movies?q=&genre=&view
 server/index.js    HTTP + WebSocket, rate limiting, heartbeats
 server/room.js     room state machine: playback, members, host, queue, polls, reactions
 server/catalog.js + catalog.json  YouTube video data;  server/search.js  fuzzy search, filters, categories, recommendations
-public/            vanilla JS client (sync-core.js is shared with Node tests)
+public/            vanilla JS client: app.js (UI + players), shortcuts.js (keyboard manager), icons.js, sync-core.js (shared with Node tests), probe.html
 test/              node:test suites;  scripts/  load test, headless client, drift simulator
 docs/LATENCY.md    measurements, test conditions, failure handling
 ```
 
 ## Honest limitations
-* **Catalog is a snapshot** of 55 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
+* **Catalog is a snapshot** of 39 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
 * Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
 * Rooms are in memory (a server restart ends them); no accounts or auth — anyone with the code can join.
 * Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.

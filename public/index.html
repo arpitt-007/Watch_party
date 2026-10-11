@@ -2,140 +2,219 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0c10">
 <title>Watch Party</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍿%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%237c6cff'/%3E%3Cpolygon points='38,28 38,72 74,50' fill='white'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<!-- Landing -->
-<main id="landing" class="landing">
-  <div class="card landing-card">
-    <h1>🍿 Watch Party</h1>
-    <p class="muted">Watch together, perfectly in sync.</p>
-    <label>Your name <input id="nameInput" maxlength="24" placeholder="e.g. Alex" autocomplete="nickname"></label>
-    <button id="createBtn" class="primary big">Create a room</button>
-    <div class="or"><span>or join with a code</span></div>
-    <form id="joinForm" class="row">
-      <input id="codeInput" maxlength="12" placeholder="ROOM CODE" autocapitalize="characters" spellcheck="false">
-      <button class="big">Join</button>
-    </form>
-    <p id="landingError" class="error" role="alert"></p>
-  </div>
-</main>
+<!-- ============ Landing ============ -->
+<div id="landing" class="landing">
+  <header class="l-nav">
+    <div class="brand"><span class="logo"><i data-icon="film"></i></span><b>Watch Party</b></div>
+    <span class="muted small hide-sm">Synchronised video rooms</span>
+  </header>
 
-<!-- Room -->
+  <main id="main" class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow"><i data-icon="sparkles" data-size="14"></i> Watch together, anywhere</span>
+      <h1>Press play once.<br><span class="grad">Everyone watches in sync.</span></h1>
+      <p class="lead">Start a room, share the link, and watch movies, trailers and music videos with friends. Playback, seeking and pausing stay locked together for everyone, with live chat, reactions, a shared queue and group polls built in.</p>
+
+      <div class="card join-card" id="joinCard">
+        <label class="field">
+          <span>Your name</span>
+          <input id="nameInput" maxlength="24" placeholder="e.g. Alex" autocomplete="nickname" aria-describedby="landingError">
+        </label>
+        <button id="createBtn" class="btn primary lg"><i data-icon="plus"></i> Create a room</button>
+        <div class="divider"><span>or join with a code</span></div>
+        <form id="joinForm" class="join-row" autocomplete="off">
+          <label class="sr-only" for="codeInput">Room code</label>
+          <input id="codeInput" maxlength="12" placeholder="ROOM CODE" autocapitalize="characters" spellcheck="false" aria-describedby="landingError">
+          <button class="btn lg" id="joinBtn"><i data-icon="arrow-right"></i> Join</button>
+        </form>
+        <p id="landingError" class="form-error" role="alert"></p>
+      </div>
+      <p class="muted small kbd-hint"><i data-icon="keyboard" data-size="14"></i><span>Full keyboard control inside the room. Press <kbd>?</kbd> there to see every shortcut.</span></p>
+    </div>
+
+    <aside class="hero-art" aria-label="Popular videos in the catalog">
+      <div id="posterWall" class="poster-wall" aria-hidden="true"></div>
+      <div class="art-badge"><span class="dot live"></span> Synchronised playback</div>
+    </aside>
+  </main>
+
+  <section class="features" aria-labelledby="featTitle">
+    <h2 id="featTitle" class="sr-only">Features</h2>
+    <article class="feature"><span class="f-icon"><i data-icon="zap"></i></span><h3>Locked-in playback</h3><p>One shared clock keeps play, pause and seek in step for everyone, and each player corrects its own drift automatically.</p></article>
+    <article class="feature"><span class="f-icon"><i data-icon="message"></i></span><h3>Chat &amp; reactions</h3><p>Talk while you watch. Emoji reactions float over the video and show up on the timeline so you can see where the room reacted.</p></article>
+    <article class="feature"><span class="f-icon"><i data-icon="chart"></i></span><h3>Queue &amp; polls</h3><p>Build a shared queue, vote items up, or run a quick poll to decide what plays next.</p></article>
+    <article class="feature"><span class="f-icon"><i data-icon="search"></i></span><h3>Find something fast</h3><p>Browse movies, trailers and music videos, filter by genre, length or popularity, and search even with typos.</p></article>
+  </section>
+  <footer class="l-foot muted small">Video plays through the YouTube player. Rooms live in memory and end when the server restarts.</footer>
+</div>
+
+<!-- ============ Room ============ -->
 <div id="roomView" class="room hidden">
   <header class="topbar">
-    <div class="brand">🍿 <b>Watch Party</b></div>
-    <button id="codeBtn" class="chip" title="Copy invite link">Room <b id="roomCode"></b> · copy link</button>
-    <span id="syncBadge" class="badge">connecting…</span>
-    <span id="hostBadge" class="badge host hidden">👑 You're the host</span>
+    <div class="brand"><span class="logo"><i data-icon="film"></i></span><b class="hide-sm">Watch Party</b></div>
+    <button id="codeBtn" class="chip tip-below" data-tip="Copy invite link" aria-label="Copy invite link">
+      <i data-icon="link" data-size="15"></i><span class="hide-xs">Room</span> <b id="roomCode" class="mono"></b><i data-icon="copy" data-size="15" class="copy-ic"></i>
+    </button>
+    <span id="syncBadge" class="status" role="status" aria-live="polite"><span class="dot"></span><span id="syncText">connecting</span></span>
+    <span id="hostBadge" class="chip host hidden"><i data-icon="crown" data-size="14"></i> Host</span>
     <span class="spacer"></span>
-    <span id="memberCount" class="muted"></span>
-    <button id="leaveBtn" class="ghost">Leave</button>
+    <div id="avatarStack" class="avatar-stack hide-sm" aria-hidden="true"></div>
+    <span id="memberCount" class="muted small"></span>
+    <button id="shareBtn" class="btn sm primary" aria-label="Share invite link"><i data-icon="share" data-size="16"></i><span class="hide-xs">Invite</span></button>
+    <button id="kbdBtn" class="icon-btn tip-below" data-tip="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" aria-haspopup="dialog"><i data-icon="keyboard"></i></button>
+    <button id="panelBtn" class="icon-btn tip-below" data-tip="Hide side panel" aria-label="Hide side panel" aria-controls="side" aria-expanded="true"><i data-icon="panel"></i></button>
+    <button id="leaveBtn" class="icon-btn tip-below" data-tip="Leave room" aria-label="Leave room"><i data-icon="log-out"></i></button>
   </header>
-  <div id="banner" class="banner hidden"></div>
+  <div id="banner" class="banner hidden" role="status"></div>
 
-  <div class="layout">
-    <section class="stage">
-      <div id="player" class="player">
+  <div id="layout" class="layout">
+    <section class="stage" aria-label="Video player">
+      <div id="player" class="player" tabindex="-1">
         <video id="video" playsinline preload="auto"></video>
         <div id="ytWrap" class="ytwrap hidden"><div id="ytHost"></div></div>
+
         <div id="emptyState" class="empty">
-          <div class="empty-emoji">🎬</div>
+          <span class="empty-ic"><i data-icon="film" data-size="30"></i></span>
           <h2>Nothing playing yet</h2>
-          <p class="muted">Open <b>Discover</b> and pick a movie — everyone in the room will start together.</p>
+          <p class="muted">Pick a movie, trailer or music video and everyone in the room starts together.</p>
+          <button id="emptyBrowse" class="btn primary"><i data-icon="search" data-size="16"></i> Browse videos</button>
         </div>
-        <div id="startCountdown" class="countdown hidden"></div>
-        <div id="tapOverlay" class="tap hidden"><button class="primary big">▶ Tap to join playback</button><p>Your browser blocked autoplay.</p></div>
-        <div id="spinner" class="spinner hidden"></div>
-        <div id="reactionLayer" class="reaction-layer"></div>
+        <div id="startCountdown" class="countdown hidden" aria-live="assertive"></div>
+        <div id="tapOverlay" class="tap hidden"><button class="btn primary lg"><i data-icon="play"></i> Tap to join playback</button><p>Your browser blocked autoplay.</p></div>
+        <div id="spinner" class="spinner hidden" role="status" aria-label="Buffering"></div>
+        <div id="errorOverlay" class="overlay-msg hidden" role="alert"><i data-icon="alert" data-size="28"></i><p id="errorText"></p></div>
+        <div id="osd" class="osd" aria-hidden="true"><span id="osdIcon"></span><span id="osdText"></span></div>
+        <div id="reactionLayer" class="reaction-layer" aria-hidden="true"></div>
+
         <div id="controls" class="controls">
-          <div class="seekwrap">
+          <div id="progress" class="progress" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 of 0:00">
             <canvas id="heat" class="heat" height="6"></canvas>
-            <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+            <div class="track"><div id="played" class="played"></div></div>
+            <div id="thumb" class="thumb"></div>
+            <div id="seekTip" class="seek-tip hidden">0:00</div>
           </div>
           <div class="ctlrow">
-            <button id="playBtn" aria-label="Play/Pause">▶</button>
-            <button id="back10" aria-label="Back 10 seconds" title="Back 10s">⏪</button>
-            <button id="fwd10" aria-label="Forward 10 seconds" title="Forward 10s">⏩</button>
-            <span id="time" class="time">0:00 / 0:00</span>
+            <button id="playBtn" class="cbtn big" data-tip="Play (Space)" aria-label="Play"><i data-icon="play" data-size="22"></i></button>
+            <button id="back10" class="cbtn" data-tip="Back 10 s (J)" aria-label="Back 10 seconds"><i data-icon="rotate-ccw" data-size="20"></i><span class="n">10</span></button>
+            <button id="fwd10" class="cbtn" data-tip="Forward 10 s (L)" aria-label="Forward 10 seconds"><i data-icon="rotate-cw" data-size="20"></i><span class="n">10</span></button>
+            <div class="vol">
+              <button id="muteBtn" class="cbtn" data-tip="Mute (M)" aria-label="Mute"><i data-icon="volume-2" data-size="20"></i></button>
+              <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+            </div>
+            <span id="time" class="time" aria-label="Playback time">0:00 / 0:00</span>
             <span class="spacer"></span>
-            <span id="lockNote" class="muted small hidden">🔒 host controls playback</span>
-            <button id="muteBtn" aria-label="Mute" title="Mute (m)">🔊</button>
-            <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
-            <button id="fsBtn" aria-label="Fullscreen" title="Fullscreen (f)">⛶</button>
+            <span id="lockNote" class="lock-note hidden"><i data-icon="lock" data-size="14"></i> Host controls playback</span>
+            <button id="theaterBtn" class="cbtn" data-tip="Theater mode (T)" aria-label="Theater mode" aria-pressed="false"><i data-icon="theater" data-size="20"></i></button>
+            <button id="fsBtn" class="cbtn" data-tip="Fullscreen (F)" aria-label="Fullscreen"><i data-icon="maximize" data-size="20"></i></button>
           </div>
         </div>
       </div>
-      <div class="nowplaying">
-        <div><div id="npTitle" class="np-title">—</div><div id="npSub" class="muted small"></div></div>
-        <div class="reactions" id="reactionBar"></div>
+
+      <div class="nowplaying" id="nowPlaying">
+        <div class="np-main">
+          <span id="npThumb" class="np-thumb"></span>
+          <div class="np-text"><h1 id="npTitle" class="np-title">Nothing playing</h1><div id="npSub" class="muted small"></div></div>
+        </div>
+        <div class="reactions" id="reactionBar" role="group" aria-label="Send a reaction"></div>
       </div>
     </section>
 
-    <aside class="side">
-      <nav class="tabs" id="tabs">
-        <button data-tab="chat" class="active">💬 Chat</button>
-        <button data-tab="discover">🔎 Discover</button>
-        <button data-tab="queue">📃 Queue <span id="queueBadge" class="pill hidden"></span></button>
-        <button data-tab="polls">📊 Polls <span id="pollBadge" class="pill hidden"></span></button>
-        <button data-tab="people">👥 People</button>
-      </nav>
+    <aside id="side" class="side" aria-label="Room panel">
+      <div class="tabs" id="tabs" role="tablist" aria-label="Room panel sections">
+        <button role="tab" id="t-chat" data-tab="chat" aria-selected="true" aria-controls="tab-chat"><i data-icon="message" data-size="16"></i><span>Chat</span><span id="chatBadge" class="pill hidden"></span></button>
+        <button role="tab" id="t-discover" data-tab="discover" aria-selected="false" aria-controls="tab-discover" tabindex="-1"><i data-icon="search" data-size="16"></i><span>Discover</span></button>
+        <button role="tab" id="t-queue" data-tab="queue" aria-selected="false" aria-controls="tab-queue" tabindex="-1"><i data-icon="list" data-size="16"></i><span>Queue</span><span id="queueBadge" class="pill hidden"></span></button>
+        <button role="tab" id="t-polls" data-tab="polls" aria-selected="false" aria-controls="tab-polls" tabindex="-1"><i data-icon="chart" data-size="16"></i><span>Polls</span><span id="pollBadge" class="pill hidden"></span></button>
+        <button role="tab" id="t-people" data-tab="people" aria-selected="false" aria-controls="tab-people" tabindex="-1"><i data-icon="users" data-size="16"></i><span>People</span></button>
+      </div>
 
-      <div id="tab-chat" class="tabpane active">
-        <div id="chatLog" class="chatlog" aria-live="polite"></div>
-        <form id="chatForm" class="row chatform">
-          <input id="chatInput" maxlength="500" placeholder="Say something…" autocomplete="off">
-          <button class="primary">Send</button>
+      <div id="tab-chat" class="tabpane active" role="tabpanel" aria-labelledby="t-chat">
+        <div class="chat-wrap">
+          <div id="chatLog" class="chatlog" role="log" aria-live="polite" aria-label="Chat messages" tabindex="0"></div>
+          <button id="jumpBtn" class="jump hidden"><i data-icon="arrow-right" data-size="14" class="rot90"></i> New messages</button>
+        </div>
+        <form id="chatForm" class="composer">
+          <label class="sr-only" for="chatInput">Message</label>
+          <textarea id="chatInput" rows="1" maxlength="500" placeholder="Message the room… (press / to focus)" autocomplete="off"></textarea>
+          <button class="icon-btn send" id="sendBtn" aria-label="Send message" data-tip="Send (Enter)"><i data-icon="send" data-size="18"></i></button>
         </form>
       </div>
 
-      <div id="tab-discover" class="tabpane">
+      <div id="tab-discover" class="tabpane" role="tabpanel" aria-labelledby="t-discover" hidden>
         <div class="filters">
-          <input id="q" type="search" placeholder="Search movies, music, trailers… (typos OK)">
-          <div id="genreChips" class="chips"></div>
+          <div class="search-box"><i data-icon="search" data-size="16"></i><label class="sr-only" for="q">Search</label><input id="q" type="search" placeholder="Search movies, music, trailers…" autocomplete="off"></div>
+          <div id="genreChips" class="chips" role="group" aria-label="Genres"></div>
           <div class="row wrap">
-            <select id="fRating" title="Popularity"><option value="">Any popularity</option><option value="1000000">1M+ views</option><option value="10000000">10M+ views</option><option value="100000000">100M+ views</option><option value="1000000000">1B+ views</option></select>
-            <select id="fLength" title="Length"><option value="">Any length</option><option value="short">Under 5 min</option><option value="mid">5–20 min</option><option value="long">20+ min (movies)</option></select>
-            <select id="fSort" title="Sort"><option value="">Best match</option><option value="views">Most viewed</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
+            <label class="sr-only" for="fRating">Popularity</label>
+            <select id="fRating"><option value="">Any popularity</option><option value="1000000">1M+ views</option><option value="10000000">10M+ views</option><option value="100000000">100M+ views</option><option value="1000000000">1B+ views</option></select>
+            <label class="sr-only" for="fLength">Length</label>
+            <select id="fLength"><option value="">Any length</option><option value="short">Under 5 min</option><option value="mid">5–20 min</option><option value="long">20+ min (movies)</option></select>
+            <label class="sr-only" for="fSort">Sort</label>
+            <select id="fSort"><option value="">Best match</option><option value="views">Most viewed</option><option value="year">Newest</option><option value="duration">Shortest</option><option value="title">A–Z</option></select>
           </div>
+          <form id="ytForm" class="row hidden"><label class="sr-only" for="ytQ">Search YouTube</label><input id="ytQ" placeholder="Search all of YouTube…"><button class="btn sm">Search</button></form>
         </div>
-        <form id="ytForm" class="row hidden"><input id="ytQ" placeholder="Search YouTube…"><button>Search</button></form>
-        <p id="ytHint" class="muted small">Everything here plays from YouTube. You can also paste any YouTube link below.</p>
         <div id="ytResults" class="list"></div>
         <div id="discoverBody" class="discover-body"></div>
         <form id="urlForm" class="urlbox">
+          <label class="sr-only" for="urlInput">YouTube link</label>
           <input id="urlInput" type="url" placeholder="Paste any YouTube link…">
-          <button type="button" id="urlPlay">▶ Play</button><button type="button" id="urlQueue">＋ Queue</button>
+          <button type="button" id="urlPlay" class="btn sm primary"><i data-icon="play" data-size="14"></i> Play</button>
+          <button type="button" id="urlQueue" class="btn sm"><i data-icon="plus" data-size="14"></i> Queue</button>
         </form>
-        <div id="pickBar" class="pickbar hidden"><span id="pickCount"></span><button id="pickPoll" class="primary">Start “what next?” poll</button><button id="pickClear" class="ghost">Clear</button></div>
+        <div id="pickBar" class="pickbar hidden"><span id="pickCount"></span><button id="pickPoll" class="btn sm primary">Start “what next?” poll</button><button id="pickClear" class="btn sm ghost">Clear</button></div>
       </div>
 
-      <div id="tab-queue" class="tabpane"><div id="queueBody"></div></div>
+      <div id="tab-queue" class="tabpane" role="tabpanel" aria-labelledby="t-queue" hidden><div id="queueBody"></div></div>
 
-      <div id="tab-polls" class="tabpane">
+      <div id="tab-polls" class="tabpane" role="tabpanel" aria-labelledby="t-polls" hidden>
         <form id="pollForm" class="card-lite">
+          <label class="sr-only" for="pollQ">Poll question</label>
           <input id="pollQ" maxlength="120" placeholder="Ask the room a question…">
-          <div id="pollOpts"><input class="pollOpt" maxlength="60" placeholder="Option 1"><input class="pollOpt" maxlength="60" placeholder="Option 2"></div>
+          <div id="pollOpts"><input class="pollOpt" maxlength="60" placeholder="Option 1" aria-label="Option 1"><input class="pollOpt" maxlength="60" placeholder="Option 2" aria-label="Option 2"></div>
           <div class="row wrap">
-            <button type="button" id="addOpt" class="ghost">＋ Option</button>
+            <button type="button" id="addOpt" class="btn sm ghost"><i data-icon="plus" data-size="14"></i> Option</button>
+            <label class="sr-only" for="pollDur">Timer</label>
             <select id="pollDur"><option value="0">No timer</option><option value="30">30 s</option><option value="60">1 min</option><option value="180">3 min</option></select>
-            <button class="primary">Start poll</button>
+            <button class="btn sm primary">Start poll</button>
           </div>
         </form>
         <div id="pollList"></div>
       </div>
 
-      <div id="tab-people" class="tabpane"><div id="peopleBody"></div></div>
+      <div id="tab-people" class="tabpane" role="tabpanel" aria-labelledby="t-people" hidden><div id="peopleBody"></div></div>
     </aside>
   </div>
 </div>
 
-<div id="toasts" class="toasts"></div>
+<!-- ============ Dialogs ============ -->
+<dialog id="kbdDialog" class="dialog" aria-labelledby="kbdTitle">
+  <div class="dialog-head"><h2 id="kbdTitle"><i data-icon="keyboard" data-size="20"></i> Keyboard shortcuts</h2><button id="kbdClose" class="icon-btn" aria-label="Close shortcuts"><i data-icon="x"></i></button></div>
+  <div id="kbdBody" class="kbd-grid"></div>
+  <p class="muted small dialog-foot">Shortcuts pause while you type in a text field. Press <kbd>Esc</kbd> or <kbd>?</kbd> to close.</p>
+</dialog>
+<dialog id="confirmDialog" class="dialog small" aria-labelledby="confirmTitle">
+  <form method="dialog">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p id="confirmText" class="muted"></p>
+    <div class="row end"><button value="cancel" class="btn">Cancel</button><button value="ok" class="btn danger" id="confirmOk">Confirm</button></div>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<script src="icons.js"></script>
 <script src="sync-core.js"></script>
+<script src="shortcuts.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

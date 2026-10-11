@@ -7,7 +7,7 @@ const catalog = require('../server/catalog');
 const top = (q, o = {}) => (searchMovies({ q, ...o })[0] || {}).title;
 
 test('catalog contains only YouTube videos with valid ids and the metadata the UI needs', () => {
-  assert.ok(catalog.movies.length >= 40);
+  assert.ok(catalog.movies.length >= 30);
   for (const m of catalog.movies) {
     assert.match(m.ytId, /^[A-Za-z0-9_-]{11}$/, m.title);
     assert.strictEqual(m.source, 'youtube');
@@ -21,7 +21,7 @@ test('fuzzy search tolerates typos, transpositions and partial words', () => {
   assert.match(top('inceptoin'), /Inception/);
   assert.match(top('interstelar'), /Interstellar/);
   assert.match(top('nosfratu'), /Nosferatu/);
-  assert.match(top('rick astly'), /Rick Astley/);
+  assert.match(top('adle helo'), /Adele/);
   assert.match(top('thriler michael'), /Thriller/);
   assert.strictEqual(searchMovies({ q: 'xyzzyqq' }).length, 0);
 });
@@ -35,7 +35,7 @@ test('search matches genres, tags and channels', () => {
 
 test('filters combine', () => {
   const r = searchMovies({ genres: ['Music'], viewsMin: 1e8 });
-  assert.ok(r.length >= 5 && r.every((m) => m.genres.includes('Music') && m.views >= 1e8));
+  assert.ok(r.length >= 3 && r.every((m) => m.genres.includes('Music') && m.views >= 1e8));
   const s = searchMovies({ durationMax: 300 });
   assert.ok(s.length && s.every((m) => m.durationSec <= 300));
   const both = searchMovies({ genres: ['Sci-Fi', 'Trailer'], allGenres: true });
