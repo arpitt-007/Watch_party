@@ -64,7 +64,7 @@ Everything in the catalog is a real YouTube video (39 titles; every one existed 
 
 ## Interface and keyboard shortcuts
 
-Dark, responsive UI (desktop, tablet, phone) with a landing page, a room view and a custom player control bar. Icons are an inline Lucide-style SVG set (`public/icons.js`); there are no external UI dependencies or build step. Side panel (Chat / Discover / Queue / Polls / People) can be hidden, and **theater mode** gives the player the full width with the panel as an overlay. On-screen indicators confirm play, pause, seek, mute and volume (including what other people did), the seek bar shows a time preview on hover, and reaction hot-spots are drawn on the timeline.
+Dark, responsive UI (desktop, tablet, phone) with a landing page, a room view and a custom player control bar. Icons are an inline Lucide-style SVG set (`public/icons.js`); there are no external UI dependencies or build step. Side panel (Chat / Discover / Queue / Polls / People) can be hidden, and **theater mode** gives the player the full width with the panel as an overlay. The control bar and progress bar dissolve about 3 s after playback starts (they stay up while loading or paused, and return on mouse, touch or key activity). On-screen indicators confirm play, pause, seek, mute and volume (including what other people did), the seek bar shows a time preview on hover, and reaction hot-spots are drawn on the timeline.
 
 All shortcuts live in one manager (`public/shortcuts.js`) and act on the real player. They are also reachable with the mouse; nothing is keyboard-only. Press **?** in a room to see the same list (generated from the bindings, so it only shows what is supported).
 

@@ -334,7 +334,7 @@
         playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, origin: location.origin },
         events: {
           onReady: () => { this.apiReady = true; applyVolume(); if (this.id !== this.created) this.p.cueVideoById(this.id); setTimeout(enforce, 0); },
-          onStateChange: (e) => { if (e.data === 0) onVideoEnded(); if (e.data === 1) { hideSpinner(); $('tapOverlay').classList.add('hidden'); } setTimeout(enforce, 0); },
+          onStateChange: (e) => { if (e.data === 0) onVideoEnded(); if (e.data === 1) { hideSpinner(); $('tapOverlay').classList.add('hidden'); scheduleIdle(); } setTimeout(enforce, 0); },
           onError: (e) => {
             hideSpinner();
             if ([2, 100, 101, 150].includes(e.data) && S.video) { send({ t: 'unplayable', token: S.video.token, code: e.data }); setTimeout(loadDiscover, 700); }
@@ -376,7 +376,7 @@
 
   function loadVideo(video, keepBins) {
     S.video = video; if (!keepBins) S.bins = {};
-    S.needsSeek = true; S.buffering = false; S.drift = 0;
+    S.needsSeek = true; S.buffering = false; S.drift = 0; S.playingSince = null;
     $('emptyState').classList.toggle('hidden', !!video);
     $('player').classList.toggle('has-video', !!video);
     $('tapOverlay').classList.add('hidden'); $('errorOverlay').classList.add('hidden');
@@ -437,7 +437,7 @@
   v.addEventListener('loadedmetadata', () => { enforce(); drawHeat(); renderControls(); });
   v.addEventListener('canplay', () => { hideSpinner(); enforce(); });
   v.addEventListener('waiting', () => $('spinner').classList.remove('hidden'));
-  v.addEventListener('playing', () => { hideSpinner(); $('tapOverlay').classList.add('hidden'); });
+  v.addEventListener('playing', () => { hideSpinner(); $('tapOverlay').classList.add('hidden'); scheduleIdle(); });
   v.addEventListener('seeked', hideSpinner);
   v.addEventListener('ended', onVideoEnded);
   v.addEventListener('error', () => { if (S.video && P === html5) { hideSpinner(); showVideoError('This video failed to load. Is the source reachable?'); } });
@@ -536,12 +536,36 @@
     if (S.video) togglePlay();
   });
   $('player').addEventListener('dblclick', (e) => { if (e.target === $('player') || e.target === v) toggleFullscreen(); });
-  let idleT;
+  // Controls (including the progress bar) dissolve a few seconds after playback starts and whenever the pointer is idle;
+  // any mouse/touch/keyboard activity brings them back, and they stay up while paused or while the pointer is on them.
+  const IDLE_MS = 3000;
+  let idleT = null;
+  const wantsIdle = () => !!(S.pb && S.pb.playing && S.video);
+  function armIdle(ms = IDLE_MS) {
+    clearTimeout(idleT);
+    idleT = setTimeout(() => {
+      idleT = null;
+      if ($('controls').matches(':hover') || document.querySelector('dialog[open]')) { armIdle(); return; }
+      if (!wantsIdle()) return;
+      // Count from when the video really started playing (S.playingSince, set in uiTick), not from when it was requested.
+      const playingFor = S.playingSince ? performance.now() - S.playingSince : 0;
+      if (!S.playingSince || playingFor < IDLE_MS) { armIdle(S.playingSince ? IDLE_MS - playingFor + 20 : 400); return; }
+      $('player').classList.add('idle');
+    }, ms);
+  }
+  // Real user activity: show the controls and restart the countdown (paused / nothing playing: stay visible).
   function showControls() {
-    const p = $('player'); p.classList.remove('idle'); clearTimeout(idleT);
-    idleT = setTimeout(() => { if (S.pb && S.pb.playing && !$('controls').matches(':hover')) p.classList.add('idle'); }, 3200);
+    $('player').classList.remove('idle'); clearTimeout(idleT); idleT = null;
+    if (wantsIdle()) armIdle();
+  }
+  // Player/state events must not keep resetting the countdown or un-hide the controls: they only start one if none is running.
+  function scheduleIdle() {
+    if (!wantsIdle()) { showControls(); return; }
+    if (idleT === null && !$('player').classList.contains('idle')) armIdle();
   }
   ['mousemove', 'pointerdown', 'touchstart', 'focusin'].forEach((ev) => $('player').addEventListener(ev, showControls, { passive: true }));
+  document.addEventListener('keydown', (e) => { if (S.inRoom && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) showControls(); }, true);
+  $('player').addEventListener('pointerup', () => { if (document.activeElement === prog) prog.blur(); }); // a clicked seek bar must not pin the controls open
 
   // ----- progress / seek slider (role="slider": keyboard handled by the shortcut manager, pointer handled here) -----
   const prog = $('progress');
@@ -589,6 +613,7 @@
     prog.setAttribute('aria-disabled', String(!ok));
     $('lockNote').classList.toggle('hidden', canControl());
     const playing = !!(S.pb && S.pb.playing);
+    scheduleIdle();
     swapIcon($('playBtn'), playing ? 'pause' : 'play', 22);
     $('playBtn').setAttribute('aria-label', playing ? 'Pause' : 'Play'); $('playBtn').dataset.tip = (playing ? 'Pause' : 'Play') + ' (Space)';
     $('hostBadge').classList.toggle('hidden', !isHost());
@@ -605,6 +630,10 @@
       prog.setAttribute('aria-valuemax', String(Math.round(d))); prog.setAttribute('aria-valuenow', String(Math.round(t)));
       prog.setAttribute('aria-valuetext', fmt(t) + ' of ' + fmt(d));
     }
+    const live = !!(S.video && S.pb && S.pb.playing && P.ready() && !P.paused() && !P.buffering());
+    // A stall shorter than 1.2 s (YouTube flips to "buffering" briefly while playing) does not restart the countdown.
+    if (live) { if (!S.playingSince) S.playingSince = performance.now(); S.notLiveSince = null; }
+    else { if (!S.notLiveSince) S.notLiveSince = performance.now(); if (performance.now() - S.notLiveSince > 1200) S.playingSince = null; }
     renderBadge();
     document.querySelectorAll('[data-closes]').forEach((el) => {
       const left = Math.max(0, Math.ceil((Number(el.dataset.closes) - serverNow()) / 1000));

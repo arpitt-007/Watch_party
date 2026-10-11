@@ -145,9 +145,9 @@ body.in-room .landing { display: none; }
 .float .e { font-size: 34px; } .float .n { font-size: 10px; background: rgba(0, 0, 0, .6); padding: 0 6px; border-radius: 6px; }
 @keyframes floatUp { 0% { transform: translateY(0) scale(.6); opacity: 0; } 12% { opacity: 1; transform: translateY(-20px) scale(1.1); } 100% { transform: translateY(-260px) scale(1); opacity: 0; } }
 
-.controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 14px 8px; background: linear-gradient(transparent, rgba(0, 0, 0, .82)); transition: opacity .25s, transform .25s var(--ease); z-index: 7; }
-.player.idle:not(:focus-within) .controls { opacity: 0; transform: translateY(8px); pointer-events: none; }
-.player.idle:not(:focus-within) { cursor: none; }
+.controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 14px 8px; background: linear-gradient(transparent, rgba(0, 0, 0, .82)); transition: opacity .6s ease, transform .6s var(--ease); z-index: 7; }
+.player.idle .controls { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.player.idle { cursor: none; }
 .player:not(.has-video) .controls { display: none; }
 .progress { position: relative; height: 22px; cursor: pointer; touch-action: none; outline-offset: 0; border-radius: 4px; }
 .progress[aria-disabled="true"] { cursor: default; }
