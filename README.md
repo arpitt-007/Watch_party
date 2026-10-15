@@ -1,152 +1,274 @@
 # 🍿 Watch Party
 
-A real-time watch-party web app: everyone in a room watches the same video in lock-step, with live chat, emoji reactions, a shared queue, group polls, host controls and movie discovery with fuzzy search.
+Watch YouTube videos together, in perfect sync. Create a room, share the link, and everyone's player plays, pauses and seeks as one. Live chat, emoji reactions, a shared queue, group polls and a searchable movie catalog are built in.
+
+**Live demo:** https://watch-party-ruby.vercel.app
+*(The real-time server runs on Render's free plan and sleeps when idle, so the first visit after a quiet spell can take 30–60 seconds. See [Deployment](#deployment).)*
+
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Using the app](#using-the-app)
+- [How it works](#how-it-works)
+- [The video catalog](#the-video-catalog)
+- [Deployment](#deployment)
+- [Configuration reference](#configuration-reference)
+- [Mobile and touch](#mobile-and-touch)
+- [Testing and performance](#testing-and-performance)
+- [API and protocol](#api-and-protocol)
+- [Project structure](#project-structure)
+- [Limitations](#limitations)
+
+## Features
+
+**Watching together**
+- Create or join rooms with an invite link or a 6-character code. Rooms hold 10+ people (tested at 50, capped at 100).
+- Synchronised play, pause and seek. A shared server clock plus automatic drift correction keeps everyone within a fraction of a second.
+- Late joiners land on the right frame. Dropped connections rejoin the same seat, and simultaneous clicks resolve to one outcome for everybody.
+- A new video starts on a short shared countdown so every player has loaded first. When a video ends, **Replay** restarts the whole room.
+
+**Social**
+- Live chat with grouped messages, timestamps and unread badges.
+- Emoji reactions that float over the video, and show as hot-spots on the seek bar so you can see where the room reacted.
+- A shared queue sorted by votes that plays the next video automatically.
+- Group polls, including "what should we watch next?" polls whose winner jumps to the top of the queue.
+- Host controls: transfer hosting, remove people, or restrict playback control to the host. If the host drops, hosting passes on automatically after a short grace period.
+
+**Discovery**
+- A catalog of real YouTube videos (movies, trailers, music, shorts, documentaries), with category rows, genre chips, popularity, length and sort filters.
+- Typo-tolerant fuzzy search, and recommendations based on what the room has watched, queued and voted for.
+- Paste any YouTube link to play or queue it for the room.
+
+**Interface**
+- Dark, responsive UI for desktop, tablet and phone, with a custom player control bar that fades out while you watch.
+- Full keyboard control with a built-in shortcut help (press `?`), theater mode, and fullscreen everywhere including iPhones.
+- Touch gestures, 44 px touch targets and landscape layouts on phones.
+
+## Quick start
+
+Requires Node.js 18 or newer. There is one dependency (`ws`) and no build step.
 
 ```bash
+git clone https://github.com/arpitt-007/Watch_party.git
+cd Watch_party
 npm install
-npm start          # http://localhost:3000
-npm run dev        # same, but restarts automatically when server code changes (use this while developing)
-npm test           # protocol, concurrency, reconnects, search, sync algorithm, keyboard-manager rules
-npm run check      # syntax check of all JS
-npm run loadtest   # latency / convergence / reconnect benchmark (see docs/LATENCY.md)
+npm start            # http://localhost:3000
 ```
 
-Open the app in two browser windows (or on two machines on your LAN: `http://<your-ip>:3000`), create a room in one, and join with the invite link or the 6-character code in the other. Node ≥ 18, one dependency (`ws`), no build step.
+Open the app in two browser windows, create a room in one and join from the other. To try it on a phone or another computer on the same Wi-Fi, open `http://<your-computer's-IP>:3000` (and allow Node through the firewall if asked).
 
-## Feature checklist
-
-| Requirement | Where |
+| Command | What it does |
 |---|---|
-| Create / join via invite link or room code | `POST /api/rooms`, `/?room=CODE`, case-insensitive codes from an unambiguous alphabet |
-| Synchronised play / pause / seek | server-authoritative playback clock, see *How sync works* |
-| YouTube videos | the whole catalog is YouTube (movies, trailers, music videos, shorts…); paste any link; IFrame-API player, see *YouTube-only catalog* |
-| Movie recommendations, categories, filters, fuzzy search | `server/search.js` (typo-tolerant, Damerau-Levenshtein per token over title / genre / tags / people / description), `/api/categories`, `/api/recommendations` |
-| Emoji reactions, live chat, shared playlists, polls, host transfer | `server/room.js` |
-| Automatic drift detection + correction | `public/sync-core.js` |
-| Late joins, reconnections, concurrent actions | snapshot-on-join, `clientId` identity, `seq` ordering, idempotent action ids |
-| ≥ 10 users / room | tested at 10, 25 and 50 (cap 100) |
-| p95 propagation ≤ 250 ms, drift ≤ 500 ms | measured: p95 ≈ 2–4 ms on loopback; simulated drift worst ≈ 120 ms. Details and caveats in [docs/LATENCY.md](docs/LATENCY.md) |
+| `npm start` | Run the server (serves the pages and the API/WebSocket) |
+| `npm run dev` | Same, but restarts automatically when server code changes |
+| `npm test` | Run the full test suite (43 tests, no network needed) |
+| `npm run check` | Syntax-check all JavaScript |
+| `npm run loadtest` | Latency, convergence and reconnect benchmark (see [docs/LATENCY.md](docs/LATENCY.md)) |
+| `npm run verify-catalog` | Re-check every catalog video against YouTube |
+| `npm run prune` | Remove videos recorded as unplayable from the catalog |
+| `npm run build:vercel` | The Vercel build step (writes `public/config.js` from `BACKEND_URL`) |
 
-### Beyond the basics
-* **Reaction timeline** – every emoji is stamped with the movie position and drawn as a heat-map on the seek bar, so you can see where the room laughed/screamed (and jump there).
-* **"What next?" polls** – pick 2–6 titles in Discover, start a poll; the winner is pinned to the top of the queue and auto-plays when the current video ends.
-* **Vote-sorted queue** – 👍 reorders the queue; the next item auto-starts when the room's clock reaches the end of the video.
-* **Group recommendations** – genre affinity from what this room watched, queued and voted for ("Because your room likes Animation").
-* **Synchronised countdown start** – a new video is scheduled 1.5 s ahead on the shared clock so every player has loaded before anyone starts.
-* **Live sync-health panel** – per-person drift, RTT and buffering state in *People*; the header badge shows your own drift.
-* **Host-only mode** – the host can restrict playback control; everyone can still chat, react, vote and queue.
-* **Play any direct video URL** (mp4/webm) for the whole room.
+> **If a server-side change seems to have no effect,** restart the server. The browser reloads page files on refresh, but the Node process keeps running old code until it is restarted. `npm run dev` avoids this.
 
-## How sync works
+## Using the app
 
-```
- client A ──control{seek,aid}──▶ server ──state{playing,pos,at,seq}──▶ every client
-```
+1. Enter your name and press **Create a room**, or enter a room code (or open an invite link) and press **Join**.
+2. Open **Discover**, pick something and press **Play**. Everyone in the room starts together.
+3. Use **Chat**, **Queue**, **Polls** and **People** in the side panel. **Invite** copies the link (or opens the share sheet on a phone).
 
-1. **The server owns the clock.** Playback state is `{playing, pos, at, seq}`: "at server time `at` the video was at `pos`; it advances at 1× if `playing`". Position now = `pos + (serverNow − at)`. Clients never tell the room where *they* are; they only request play/pause/seek. A pause takes its position from the server clock, not from the pressing client.
-2. **Clock sync.** Every client pings every 3 s (6 quick pings at join). NTP-style samples (`offset = ts − (t0+t2)/2`); the best third by RTT are averaged, so one congested sample doesn't skew the offset. Propagation delay is therefore *compensated* rather than added to the error.
-3. **Drift loop (every 250 ms):** `drift = currentTime − expected`; under 40 ms do nothing, up to 350 ms nudge `playbackRate` by up to ±8 %, beyond that hard-seek. A 1.2 s post-seek cooldown prevents seek storms while the player re-buffers.
-4. **Concurrency.** One server thread serialises all actions; each accepted change bumps `seq`; the last action wins; redundant play/pause are no-ops. Clients ignore stale `seq`.
-5. **Late join.** The welcome message carries the full room snapshot; the client loads the video, seeks to the *expected* position and the drift loop does the rest.
-6. **Reconnection.** Identity is a per-tab `clientId` (sessionStorage), so a refresh or network blip returns you to the same seat — same name, same host role if within the grace period — with no ghost duplicate.
-7. **Local interference.** Native controls are removed and the player re-asserts the room state if something (a media key, an extension) pauses it behind the app's back.
+### Keyboard shortcuts
 
-## YouTube-only catalog
-
-Everything in the catalog is a real YouTube video (37 titles; every one existed and allowed embedding for the browser that checked it): 7 full public-domain movies (Night of the Living Dead, Nosferatu, Metropolis, A Trip to the Moon, The General, Safety Last!, Plan 9), 12 official trailers (Inception, Interstellar, Dune: Part Two, Oppenheimer, …), 2 official music videos (Queen, Eminem), 11 Blender animated shorts, plus documentaries and comedy. Browse by category row, genre chips, popularity (view count), length and sort, or fuzzy-search titles / genres / tags / channels.
-
-* **Any video:** paste a `youtube.com/watch`, `youtu.be`, `/shorts/` or `/embed/` link in *Discover*. The server extracts the 11-character id, looks the title up with YouTube's keyless oEmbed endpoint and uses the YouTube thumbnail as poster. A link to a catalog video resolves to its catalog entry.
-* **Search all of YouTube (optional):** `YOUTUBE_API_KEY=<Data API v3 key> npm start` shows a *Search YouTube* box (only embeddable videos are returned). Without a key the box is hidden. *This path is untested against the live API, since no key was available.*
-* **Embedding is enforced, not assumed:** (1) every catalog video is verified by `npm run verify-catalog` (exists, playable, `playableInEmbed`, oEmbed OK, not age-gated); server-side checks cannot see every restriction: 13 music videos passed them but YouTube refused to embed them in a real browser (error 150), so they were removed using `/probe.html`. (2) A pasted link is checked with oEmbed first; videos whose owner disabled embedding, or that are private/removed, are rejected with a message. (3) If a viewer's player still reports error 2/100/101/150 at play time (e.g. a region lock or an owner restriction that only applies to some viewers), the room skips to the next queued video **and the video is blocked**: it disappears from Discover and recommendations and stays hidden across restarts (`server/blocked.json`, git-ignored; delete the file to reset). This is how the catalog adapts to your audience's regions, which cannot be checked from the server.
-* **Checking in your own browser:** open `http://localhost:3000/probe.html` (keep the tab in front). It plays every catalog video muted, marks the ones YouTube refuses to embed *for you* (errors 2/100/101/150), hides them immediately, and `npm run prune` then deletes them from `server/catalog.json`. Server-side checks cannot see every restriction (e.g. Gangnam Style and See You Again passed them but were refused in a real player, and were removed).
-* **Updating the catalog:** edit `server/catalog.json` (id, title, category, year, genres, tags, description, channel, durationSec, views). Sources are third-party uploads; if an uploader deletes a video or disables embedding, the player shows a message for it. Full-movie entries are public-domain re-uploads by third-party channels and are the most likely to disappear.
-* **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±15–60 ms. The iframe is click-through so every control goes through the room.
-* Requires internet access to youtube.com. YouTube's own ads are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync. Non-YouTube direct video URLs still work if pasted (plain `<video>` player), but the UI only advertises YouTube.
-
-## Deploying (Vercel front end + Render real-time server)
-
-**Live:** site https://watch-party-ruby.vercel.app (Vercel) talking to https://watch-party-server-03wr.onrender.com (Render). Vercel has `BACKEND_URL` set to the Render URL; Render has `ALLOWED_ORIGIN` set to the Vercel URL.
-
-Vercel only runs short-lived serverless functions, so it cannot host this app's server (long-lived WebSocket connections and rooms held in memory). The deployment is therefore split, and the same code supports both layouts:
-
-```
- browser ──https──▶ Vercel (static pages: public/)
-    │
-    └──wss/https──▶ Render (Node server: API + WebSocket, server/)
-```
-
-1. **Real-time server on Render** (free): New + → *Blueprint* → pick this repository (`render.yaml` configures everything). When asked for `ALLOWED_ORIGIN`, enter the Vercel site's URL (e.g. `https://watch-party.vercel.app`; several origins may be comma separated). Note the service URL, e.g. `https://watch-party-server.onrender.com`.
-2. **Front end on Vercel**: `vercel.json` is already set up (static `public/`, build step `node scripts/build-vercel.js`). Set the project environment variable `BACKEND_URL` to the Render URL and (re)deploy: `vercel env add BACKEND_URL production` then `vercel deploy --prod`. The build writes it into `public/config.js`.
-3. Open the Vercel URL, create a room, share the invite link.
-
-Server settings (environment variables): `ALLOWED_ORIGIN` (CORS and WebSocket origin check; empty or `*` = any), `AUTO_BLOCK=0` (public mode: the "hide unplayable videos for everyone" feature is off, so one visitor cannot hide catalog videos for all), `ADMIN_TOKEN` (if set, `POST /api/blocked` needs the `X-Admin-Token` header), `PORT`, `YOUTUBE_API_KEY`.
-
-Things to know about the free tiers: Render's free plan sleeps after ~15 minutes without traffic. The page wakes it as soon as it opens (and says so), which takes 30–60 s; rooms live in memory, so they end whenever the service sleeps or restarts. For always-on rooms use a paid instance or keep it awake with an uptime pinger on `/healthz`. Running everything on one host also works: `npm start` serves both the pages and the API (leave `config.js` untouched).
-
-## Interface and keyboard shortcuts
-
-Dark, responsive UI (desktop, tablet, phone) with a landing page, a room view and a custom player control bar. Icons are an inline Lucide-style SVG set (`public/icons.js`); there are no external UI dependencies or build step. Side panel (Chat / Discover / Queue / Polls / People) can be hidden, and **theater mode** gives the player the full width with the panel as an overlay. The control bar and progress bar dissolve about 3 s after playback starts (they stay up while loading or paused, and return on mouse, touch or key activity). On-screen indicators confirm play, pause, seek, mute and volume (including what other people did), the seek bar shows a time preview on hover, and reaction hot-spots are drawn on the timeline.
-
-All shortcuts live in one manager (`public/shortcuts.js`) and act on the real player. They are also reachable with the mouse; nothing is keyboard-only. Press **?** in a room to see the same list (generated from the bindings, so it only shows what is supported).
+Press `?` in a room to see this list. Shortcuts act on the real player, and everything also works with the mouse or touch.
 
 | Keys | Action |
 |---|---|
-| Space or K | Play / pause (synchronised for the room) |
+| Space or K | Play / pause (for the whole room) |
 | ← / → | Seek 5 s back / forward |
 | Shift+← / Shift+→, J / L | Seek 10 s back / forward |
 | M | Mute / unmute |
 | ↑ / ↓ | Volume up / down |
 | F | Fullscreen |
 | T | Theater mode |
-| Esc | Close dialog, then exit theater / fullscreen, or leave a text field |
+| Esc | Close the open dialog, then exit theater mode or fullscreen, or leave a text field |
 | / | Focus the chat box |
-| Enter, Ctrl/Cmd+Enter | Send message (Shift+Enter for a new line) |
-| ? | Show / hide the shortcut help |
+| Enter, Ctrl/Cmd+Enter | Send a message (Shift+Enter for a new line) |
+| ? | Show / hide shortcut help |
 
-Rules: shortcuts never fire while typing in an input, textarea, select or contenteditable (except Esc and Ctrl/Cmd+Enter in the composer); while a dialog is open only Esc and ? work; Space/Enter on a focused button and arrows on sliders/tabs keep their native behaviour; Ctrl/Cmd/Alt combinations are left to the browser; held keys repeat only for seeks and volume. In a host-only room non-hosts get a clear message instead of a silent no-op, and local actions (mute, volume, theater) still work.
+Shortcuts never fire while you type in a text field, and only Esc and `?` work while a dialog is open. Space and Enter on a focused button, and arrow keys on sliders and tabs, keep their normal behaviour. Ctrl/Cmd/Alt combinations are left to the browser. In a host-only room, non-hosts get a clear message instead of a silent no-op. Captions and picture-in-picture are not offered, because the YouTube player API gives no reliable way to toggle them.
 
-**Not provided, deliberately:** captions (`C`) and picture-in-picture, because the YouTube IFrame API exposes no reliable way to toggle them; they are neither bound nor listed in the help.
+## How it works
 
-## Replay
+```
+ browser ──control{play|pause|seek}──▶ server ──state{playing,pos,at,seq}──▶ every browser
+```
 
-> If Replay (or any other server-side change) seems not to work, check that the server was restarted: the browser reloads client files on refresh, but the Node process keeps running old code until it is restarted. `npm run dev` does that automatically.
+1. **The server owns the clock.** Playback state is `{playing, pos, at, seq}`, meaning "at server time `at` the video was at `pos`, and advances at 1× if `playing`". The position right now is `pos + (serverNow − at)`. Clients only ask for play, pause or seek; they never tell the room where they are. A pause takes its position from the server clock, not from whoever clicked.
+2. **Clock sync.** Each client pings every 3 s (six quick pings when it joins) and estimates the server clock NTP-style, averaging the lowest-latency third of samples. Network delay is compensated instead of added to the error.
+3. **Drift correction (every 250 ms).** `drift = currentTime − expected`. Under 40 ms: nothing. Up to 350 ms: nudge the playback rate by up to ±8 % (imperceptible). Beyond that: seek, with a cooldown so a slow re-buffer doesn't cause seek storms. YouTube's player only allows fixed playback rates, so for YouTube drift is corrected by seeking only (threshold 450 ms).
+4. **Concurrency.** One server thread handles all actions in order. Every accepted change bumps `seq`, the last action wins, and clients ignore stale updates. Pressing play on a playing video (or pause on a paused one) is a no-op, so two people clicking together don't toggle it back. Every action carries an id, so a retry after a reconnect is applied once.
+5. **Late joins.** The welcome message carries a full snapshot (video, position, chat, queue, polls, roster). The client loads the video and seeks to the *expected* position.
+6. **Reconnection.** Identity is a per-tab id stored in `sessionStorage`. After a refresh or network drop you return to the same seat. Hosting is kept through an 8 s grace period, and members are kept for 30 s.
+7. **Video end and replay.** When a video ends, the room parks at the end and shows a **Video ended** card. **Replay** (or Space) restarts the room from 0:00 for everyone. If the queue has items, the next one starts automatically.
 
-When a video ends (and nothing is queued) the room parks at the end and a **Video ended** card appears over the player with **Replay** (and **Play next** if the queue has items). The play button becomes a replay button and Space/K does the same. Replay restarts the whole room from 0:00, for everyone, and re-arms the end-of-video handling so the video can end (and advance the queue) again. In host-only rooms only the host can replay. Dragging the seek bar away from the end also re-arms it. YouTube's own end screen is covered, since it cannot be clicked through the click-through player.
+## The video catalog
 
-Related fix: the client only reports a video's length once the YouTube player has actually loaded that video (it used to report the previous video's length for a moment), and the server replaces a too-short stored length when a longer report arrives.
+The catalog (`server/catalog.json`) holds 37 real YouTube videos: 7 full public-domain movies, 12 official trailers, 2 music videos, 11 Blender animated shorts, 4 documentaries and 1 comedy clip. You can also paste any YouTube link (`watch`, `youtu.be`, `/shorts/` or `/embed/`). The server checks it with YouTube's oEmbed endpoint first and rejects videos that are private, removed, or have embedding disabled.
+
+**Embedding restrictions the server can't see.** Whether a video plays can depend on the viewer's region or browser. So the app adapts at run time:
+- If a viewer's player refuses a video (error 2, 100, 101 or 150), the room skips to the next queued video.
+- On a private or local setup, that video is also **blocked**: hidden from Discover and recommendations, and remembered in `server/blocked.json` (git-ignored; delete the file to reset). Public deployments turn this off (`AUTO_BLOCK=0`) so one visitor can't hide videos for everyone.
+- `npm run verify-catalog` re-checks every video from the server's point of view.
+- Open `/probe.html` in your own browser, keep the tab in front, and it plays every catalog video muted and records the ones YouTube refuses for you. Then run `npm run prune` to remove them from `server/catalog.json`.
+
+**Updating the catalog:** edit `server/catalog.json` (`id`, `title`, `category`, `year`, `genres`, `tags`, `description`, `channel`, `durationSec`, `views`). The videos are third-party uploads and can disappear or change at any time, so the full-movie re-uploads in particular may need replacing.
+
+**Search all of YouTube (optional):** set `YOUTUBE_API_KEY` (a YouTube Data API v3 key) on the server to show a *Search YouTube* box. Without a key the box is hidden. This path has not been tested against the live API.
+
+YouTube's own ads are not suppressed, and each viewer's player plays them on its own schedule, which can cause a brief resync.
+
+## Deployment
+
+The app has two parts:
+
+| Part | What it is | Where it can run |
+|---|---|---|
+| **Pages** | Static files in `public/` | Anywhere, including Vercel |
+| **Real-time server** | Node process in `server/`: REST API and WebSocket, with rooms held in memory | Any host that runs a long-lived Node process (Render, Railway, Fly.io, a VPS, your own computer) |
+
+Vercel runs short-lived serverless functions. It cannot keep WebSocket connections open or hold room state between requests, so **the real-time server cannot run on Vercel**. The live site therefore uses a split deployment:
+
+```
+ browser ──https──▶ Vercel   (static pages: public/)
+    │
+    └──wss / https──▶ Render  (Node server: API + WebSocket, server/)
+```
+
+The pages learn the server's address from `public/config.js`. It is empty by default (same origin) and is written at build time on Vercel from the `BACKEND_URL` environment variable.
+
+### Option A: Vercel pages + Render server (what the live site uses)
+
+**1. Deploy the real-time server on Render (free plan)**
+1. Push this repository to GitHub.
+2. In Render, choose **New +** → **Blueprint** and select the repository. Render reads [`render.yaml`](render.yaml), which sets the build and start commands, the Node version, the health check (`/healthz`) and `AUTO_BLOCK=0`.
+3. When prompted for `ALLOWED_ORIGIN`, enter your Vercel site's address (for example `https://watch-party-ruby.vercel.app`). If you don't know it yet, leave it empty (any website may then connect) and set it later.
+4. Wait for the deploy to finish and copy the service URL, for example `https://watch-party-server-03wr.onrender.com`. Opening `<that URL>/healthz` should return `{"ok":true}`.
+
+**2. Deploy the pages on Vercel**
+1. Import the repository in Vercel, or use the CLI as below. [`vercel.json`](vercel.json) already configures the static output (`public/`) and the build step (`node scripts/build-vercel.js`), so leave the framework preset as *Other*.
+2. Set the environment variable `BACKEND_URL` to the Render service URL (https, no trailing path), for **Production**.
+3. Deploy. With the CLI:
+   ```bash
+   npm i -g vercel
+   vercel login
+   vercel link                          # create / connect the project
+   vercel env add BACKEND_URL production   # paste the Render URL when asked
+   vercel deploy --prod
+   ```
+4. Once Vercel gives you the final site address, set `ALLOWED_ORIGIN` on Render to exactly that (scheme and host, no path or trailing slash; several origins may be comma separated). Render redeploys automatically.
+
+**3. Check it works.** Open the Vercel site, create a room, start a video and join from a second browser tab with the invite link. Vercel redeploys on every push to the connected branch.
+
+### Option B: everything on one host
+
+Deploy the repository to a single Node host (Render, Railway, Fly.io, a VPS, …) with build command `npm ci --omit=dev` and start command `npm start`. The server serves both the pages and the API, so leave `public/config.js` untouched and `BACKEND_URL` unset. Set `AUTO_BLOCK=0` for a public instance.
+
+### Option C: your own network
+
+`npm start` on any computer, then share `http://<its-IP>:3000` with people on the same network. For friends outside your network, use a tunnelling tool or Option A/B.
+
+### Free-plan behaviour and troubleshooting
+
+- **Sleeping server.** Render's free plan stops the service after about 15 minutes without traffic. The next visit wakes it in 30–60 seconds (the page shows "Waking up the server…"). Rooms live in memory, so they end whenever the server sleeps or restarts. For always-on rooms, use a paid instance or an uptime pinger on `/healthz`.
+- **"Server is not responding" / room won't create.** The server may still be waking up (wait a minute and retry), `BACKEND_URL` may be wrong or missing (check `https://<your-site>/config.js`, which should contain your Render URL), or `ALLOWED_ORIGIN` may not match the site's exact address. Browsers treat each address as its own origin, so a Vercel preview URL is *not* the same origin as the production domain and needs to be listed too.
+- **Changed `BACKEND_URL`?** It is baked in at build time, so redeploy the Vercel project.
+- **"Address already in use" locally.** Another copy is already running on port 3000. Stop it, or set `PORT`.
+- **Vercel preview URLs asking for a login.** That is Vercel's deployment protection for non-production URLs. Share the production domain.
+- **Custom domains.** Add the domain in Vercel, then add its origin to `ALLOWED_ORIGIN` on Render.
+
+## Configuration reference
+
+All settings are environment variables on the **server**, except `BACKEND_URL`, which belongs to the **Vercel build**.
+
+| Variable | Where | Default | Purpose |
+|---|---|---|---|
+| `PORT` | server | `3000` | Port to listen on (Render sets this itself) |
+| `ALLOWED_ORIGIN` | server | any origin | Comma-separated list of site origins allowed to call the API and open WebSockets. Empty or `*` allows any |
+| `AUTO_BLOCK` | server | on | `0` = public mode: unplayable videos are skipped for the room but not hidden for everyone, and `POST /api/blocked` is disabled |
+| `ADMIN_TOKEN` | server | unset | If set, `POST /api/blocked` requires an `X-Admin-Token` header with this value |
+| `YOUTUBE_API_KEY` | server | unset | Enables the optional *Search YouTube* box |
+| `WP_BLOCKED_FILE` | server | `server/blocked.json` | Where blocked videos are remembered |
+| `BACKEND_URL` | Vercel build | unset | Real-time server address written into `public/config.js` (`https://…`, or `http://localhost…` for local tests) |
 
 ## Mobile and touch
 
-Checked at 320, 360, 375, 414, 600, 768 px and phone landscape (812x375): no horizontal overflow, and the header, Leave button and message box stay on screen at every size.
+Checked at 320, 360, 375, 414, 600 and 768 px wide and in phone landscape (812×375), with no horizontal overflow and the header, Leave button and message box always on screen.
 
-* **Portrait phones / small tablets:** the room is one fixed screen (header, player, now-playing + reactions, panel). The page itself never scrolls, so the video can't scroll away; only the panel's contents scroll and the chat box is always pinned at the bottom (it follows the on-screen keyboard via `interactive-widget=resizes-content`). Discover's genre chips become a single sideways-scrolling row and the three filters share one line.
-* **Phone landscape:** video on the left, panel on the right, all inside the screen.
-* **Touch targets:** on touch devices (`pointer: coarse`) every button, tab, chip, option and the seek bar are at least 44 px, inputs are 16 px so iOS doesn't zoom on focus, and hover-only things (tooltips, the volume slider) are replaced by always-visible controls. Safe-area insets are respected for notches and home indicators.
-* **Gestures:** the first tap on a video with hidden controls only reveals them; a later tap toggles play. Double-tap the left third / right third to seek 10 s back / forward, double-tap the middle for fullscreen. A double-tap sends a single seek (no pause/resume blip).
-* **Autoplay blocked:** if the browser refuses to start the video, a "Tap to join playback" prompt appears over the player (only while the room is actually playing).
-* **Fullscreen:** the button is always there. It uses the browser's real Fullscreen API where available; on iPhone Safari (which only allows fullscreen for bare <video> elements, not for our player with its shared controls) or when a browser refuses, the player expands to fill the whole screen instead (rotate the phone for a landscape picture; Esc, the F key or the same button exits). Android Chrome additionally tries to lock landscape.
-* Keyboard-only features are never the only way to do something; the on-screen buttons cover everything.
+- **Portrait phones and small tablets:** the room is one fixed screen (header, player, now-playing and reactions, panel). The page itself never scrolls, so the video can't scroll away, and the chat box stays pinned at the bottom (it follows the on-screen keyboard).
+- **Phone landscape:** video on the left, panel on the right.
+- **Touch targets:** on touch devices every button, tab, chip, option and the seek bar are at least 44 px. Inputs are 16 px so iOS doesn't zoom, hover-only UI is replaced by always-visible controls, and notch and home-bar spacing is respected.
+- **Gestures:** the first tap on a video with hidden controls only reveals them, and a later tap plays or pauses. Double-tap the left or right third to seek 10 s back or forward; double-tap the middle for fullscreen. A double-tap sends a single seek.
+- **Autoplay blocked:** if the browser refuses to start the video, a "Tap to join playback" prompt appears (only while the room is actually playing).
+- **Fullscreen:** the button is always shown. It uses the browser's Fullscreen API where available. On iPhone Safari, which only offers fullscreen for bare video elements, or when a browser refuses, the player fills the whole screen instead (rotate the phone for a landscape picture). Android Chrome also tries to lock landscape.
 
-## Protocol (JSON over WebSocket `/ws`)
+## Testing and performance
 
-Client → server: `join`, `ping`, `control{action: play|pause|seek, position, aid}`, `setVideo{catalogId|url}`, `ended{token}`, `report{drift, rtt, buffering, duration, token}`, `chat`, `react`, `queue.add|remove|vote|play`, `poll.create|vote|close`, `host.transfer|kick`, `settings{controlMode}`.
-Server → client: `welcome` (snapshot), `state`, `presence`, `health`, `chat`, `reaction`, `playlist`, `polls`, `pong`, `error`, `kicked`.
-HTTP: `POST /api/rooms`, `GET /api/rooms/:code`, `GET /api/movies?q=&genre=&viewsMin=&durMin=&durMax=&sort=`, `GET /api/categories`, `GET /api/recommendations?room=`, `GET /api/metrics`.
-
-## Layout
-
-```
-server/index.js    HTTP + WebSocket, rate limiting, heartbeats
-server/room.js     room state machine: playback, members, host, queue, polls, reactions
-server/catalog.js + catalog.json  YouTube video data;  server/search.js  fuzzy search, filters, categories, recommendations
-public/            vanilla JS client: app.js (UI + players), shortcuts.js (keyboard manager), icons.js, sync-core.js (shared with Node tests), probe.html
-test/              node:test suites;  scripts/  load test, headless client, drift simulator
-docs/LATENCY.md    measurements, test conditions, failure handling
+```bash
+npm test
 ```
 
-## Honest limitations
-* **Catalog is a snapshot** of 37 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
-* Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
-* Rooms are in memory (a server restart ends them, and so does the free Render plan going to sleep); no accounts or auth — anyone with the code can join.
-* Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.
-* Background browser tabs are throttled by the browser, which can cause brief drift until the tab is active again.
+43 tests with no network needed, covering: rooms, host and permission rules, synchronised control, concurrent actions, duplicate retries, late joins, reconnects, queue and auto-advance, polls, chat limits, replay, fuzzy search and filters, YouTube link handling, the sync algorithm (including a closed-loop drift simulation), the keyboard manager's rules, and the split-deployment behaviour (CORS, origin checks, public mode, the Vercel build step).
+
+Measured on one machine over loopback (see [docs/LATENCY.md](docs/LATENCY.md) for method and caveats):
+
+| | Result | Requirement |
+|---|---|---|
+| Control propagation, 10–50 users | p95 ≈ 2–4 ms | ≤ 250 ms at p95 on a local network |
+| Playback drift after correction | ≤ ~120 ms (simulation) | ≤ 500 ms |
+| Concurrent conflicting actions | 30 / 30 rounds converged at 10, 25 and 50 users | n/a |
+
+Drift was validated by simulation plus a two-browser check, not on a fleet of real devices. Over the real Internet (live deployment, Vercel page to Render server) a round trip took about 240 ms and playback drift stayed under 50 ms.
+
+## API and protocol
+
+HTTP (JSON): `POST /api/rooms`, `GET /api/rooms/:code`, `GET /api/movies?q=&genre=&viewsMin=&durMin=&durMax=&sort=`, `GET /api/categories`, `GET /api/recommendations?room=`, `GET /api/youtube/search?q=`, `GET /api/metrics`, `GET /healthz`, `POST /api/blocked`.
+
+WebSocket at `/ws` (JSON messages):
+- Client → server: `join`, `ping`, `control {action: play|pause|seek, position, aid}`, `setVideo {catalogId | url}`, `ended`, `unplayable`, `report`, `chat`, `react`, `queue.add|remove|vote|play`, `poll.create|vote|close`, `host.transfer|kick`, `settings`.
+- Server → client: `welcome` (full snapshot), `state`, `presence`, `health`, `chat`, `reaction`, `playlist`, `polls`, `pong`, `error`, `kicked`.
+
+## Project structure
+
+```
+server/
+  index.js          HTTP + WebSocket server, CORS, rate limiting, heartbeats
+  room.js           room state machine: playback, members, host, queue, polls, reactions
+  catalog.js        loads catalog.json, remembers blocked videos
+  catalog.json      the YouTube video catalog
+  search.js         fuzzy search, filters, categories, recommendations
+public/
+  index.html        landing page, room view, dialogs
+  app.js            UI, players (HTML5 + YouTube), sync loop, controls, chat, discover
+  shortcuts.js      keyboard shortcut manager
+  sync-core.js      clock sync + drift correction (shared with the tests)
+  icons.js          inline SVG icon set
+  style.css         styles (responsive, touch, reduced motion)
+  config.js         runtime config (backend address)
+  probe.html        in-browser catalog checker
+scripts/            load test, drift simulator, catalog tools, Vercel build step
+test/               node:test suites
+docs/LATENCY.md     measurements, test conditions, failure handling
+render.yaml         Render Blueprint for the real-time server
+vercel.json         Vercel configuration for the pages
+```
+
+## Limitations
+
+- **Rooms live in memory.** A server restart ends them, and so does Render's free plan going to sleep. There are no accounts, and anyone with a room code can join.
+- **YouTube only.** The player is YouTube's embedded player, so videos must allow embedding, ads play on each viewer's own schedule, and DRM streaming services (Netflix and similar) can't be used. Captions and picture-in-picture aren't available.
+- **The catalog is a snapshot** of 37 curated videos. Links to third-party uploads can break, and view counts and lengths date from when it was built. Pasting a link always works for any embeddable video.
+- **Sync precision on YouTube** is slightly coarser than for plain video files, since YouTube's player can't adjust playback speed in small steps.
+- **Public instances** have no per-IP connection limits beyond per-connection rate limiting and room caps, so put a rate-limiting proxy in front of anything heavily exposed.
+- Background browser tabs are throttled by the browser, which can cause brief drift until the tab is active again.
+
+## License
+
+MIT, as declared in `package.json`.
