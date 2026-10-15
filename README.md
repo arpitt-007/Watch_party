@@ -65,6 +65,8 @@ Everything in the catalog is a real YouTube video (37 titles; every one existed 
 
 ## Deploying (Vercel front end + Render real-time server)
 
+**Live:** site https://watch-party-ruby.vercel.app (Vercel) talking to https://watch-party-server-03wr.onrender.com (Render). Vercel has `BACKEND_URL` set to the Render URL; Render has `ALLOWED_ORIGIN` set to the Vercel URL.
+
 Vercel only runs short-lived serverless functions, so it cannot host this app's server (long-lived WebSocket connections and rooms held in memory). The deployment is therefore split, and the same code supports both layouts:
 
 ```
