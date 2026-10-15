@@ -21,10 +21,12 @@
 <div id="bar"><div id="fill"></div></div>
 <div id="players"></div>
 <table id="rows"></table>
+<script src="config.js"></script>
 <script>
 (async () => {
+  const BACKEND = String((window.WP_CONFIG && window.WP_CONFIG.backend) || '').replace(/\/+$/, '');
   const $ = (id) => document.getElementById(id);
-  const items = await fetch('/api/movies?sort=views').then((r) => r.json()).then((r) => r.items);
+  const items = await fetch(BACKEND + '/api/movies?sort=views').then((r) => r.json()).then((r) => r.items);
   const rows = new Map();
   for (const m of items) {
     const tr = document.createElement('tr');
@@ -64,7 +66,7 @@
       }
     }
     await Promise.all([worker(), worker(), worker()]);
-    if (failed.length) await fetch('/api/blocked', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: failed }) });
+    if (failed.length) await fetch(BACKEND + '/api/blocked', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: failed }) });
     $('status').textContent = 'Done: ' + (items.length - failed.length - slow.length) + ' play, ' + failed.length + ' blocked' + (slow.length ? ', ' + slow.length + ' inconclusive' : '') + (failed.length ? '. Blocked videos are now hidden; run npm run prune to remove them from the catalog.' : '.');
   };
 })();

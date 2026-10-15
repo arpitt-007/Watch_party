@@ -4,6 +4,11 @@
   const nowMs = () => performance.timeOrigin + performance.now();
   const EMOJIS = ['😂', '😮', '😢', '❤️', '👏', '🔥', '😱', '🎉'];
   const BIN_SECONDS = 5;
+  // Where the API and WebSocket live: the page's own origin by default, or WP_CONFIG.backend (set at deploy time) when the
+  // page is hosted separately from the real-time server (e.g. static site on Vercel, Node server on Render).
+  const BACKEND = String((window.WP_CONFIG && window.WP_CONFIG.backend) || '').replace(/\/+$/, '');
+  const apiUrl = (p) => BACKEND + p;
+  const wsUrl = () => (BACKEND ? BACKEND.replace(/^http/, 'ws') : (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host) + '/ws';
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const icon = (name, size) => Icons.el(name, size);
 
@@ -122,7 +127,7 @@
     try {
       store.set('wp_name', name);
       landingError('');
-      const r = await fetch('/api/rooms/' + encodeURIComponent(code)).catch(() => null);
+      const r = await fetch(apiUrl('/api/rooms/' + encodeURIComponent(code))).catch(() => null);
       if (!r || !r.ok) return landingError(r ? 'Room not found. Check the code and try again.' : 'Could not reach the server.', 'codeInput');
       S.code = (await r.json()).code; S.name = name; S.leaving = false;
       let id = store.get('wp_cid', sessionStorage);
@@ -140,7 +145,7 @@
   $('createBtn').onclick = async () => {
     if (!$('nameInput').value.trim()) return landingError('Please enter your name first.', 'nameInput');
     $('createBtn').disabled = true;
-    const r = await fetch('/api/rooms', { method: 'POST' }).catch(() => null);
+    const r = await fetch(apiUrl('/api/rooms'), { method: 'POST' }).catch(() => null);
     $('createBtn').disabled = false;
     if (!r || !r.ok) return landingError('Could not create a room. Is the server running?');
     enterRoom((await r.json()).code);
@@ -153,13 +158,23 @@
   $('codeBtn').onclick = copyInvite;
   $('shareBtn').onclick = shareInvite;
 
+  // A separately hosted free-tier server may be asleep: wake it as soon as the page opens, and say so if it is slow.
+  (function warmBackend() {
+    if (!BACKEND) return;
+    const note = $('landingNote');
+    const slow = setTimeout(() => { note.textContent = 'Waking up the server… this can take up to a minute the first time.'; }, 1500);
+    fetch(apiUrl('/healthz'), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('bad status'); note.textContent = ''; })
+      .catch(() => { note.textContent = 'The server is not responding yet. Try again in a moment.'; })
+      .finally(() => clearTimeout(slow));
+  })();
+
   // Real catalog thumbnails as the hero art (no invented content).
   (async function posterWall() {
     const wall = $('posterWall');
     wall.classList.add('skeleton-wall');
     wall.replaceChildren(...Array.from({ length: 6 }, () => h('div', { class: 'p' })));
     try {
-      const { rows } = await fetch('/api/categories').then((r) => r.json());
+      const { rows } = await fetch(apiUrl('/api/categories')).then((r) => r.json());
       const items = (rows[0] ? rows[0].items : []).filter((m) => m.thumb).slice(0, 6);
       if (!items.length) throw new Error('empty');
       wall.classList.remove('skeleton-wall');
@@ -188,7 +203,7 @@
   // ================= connection =================
   function connect() {
     clearTimeout(S.reconnectTimer);
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    const ws = new WebSocket(wsUrl());
     S.ws = ws;
     ws.onopen = () => {
       ws.send(JSON.stringify({ t: 'join', room: S.code, name: S.name, clientId: S.you }));
@@ -879,7 +894,7 @@
     if (!body.children.length) body.replaceChildren(...skeletons());
     try {
       if (!q && !genres.length && !rating && !len && !sort) {
-        const [cat, rec] = await Promise.all([fetch('/api/categories').then((r) => r.json()), fetch('/api/recommendations?room=' + S.code).then((r) => r.json())]);
+        const [cat, rec] = await Promise.all([fetch(apiUrl('/api/categories')).then((r) => r.json()), fetch(apiUrl('/api/recommendations?room=' + S.code)).then((r) => r.json())]);
         if (gen !== discoverGen) return;
         buildGenres(cat.genres);
         const shelf = (title, items) => h('div', { class: 'shelf' }, h('h4', null, title), h('div', { class: 'scroller' }, items.map((m) => movieCard(m, true))));
@@ -893,7 +908,7 @@
         if (len === 'mid') { p.set('durMin', 300); p.set('durMax', 1200); }
         if (len === 'long') p.set('durMin', 1200);
         if (sort) p.set('sort', sort);
-        const res = await fetch('/api/movies?' + p).then((r) => r.json());
+        const res = await fetch(apiUrl('/api/movies?' + p)).then((r) => r.json());
         if (gen !== discoverGen) return;
         buildGenres(res.genres);
         body.replaceChildren(res.items.length ? h('div', { class: 'list' }, res.items.map((m) => movieCard(m, false))) : h('div', { class: 'empty-note' }, icon('search', 24), h('b', null, 'No matches'), h('span', { class: 'small' }, 'Try fewer filters or a different spelling.')));
@@ -904,14 +919,14 @@
   const urlOf = () => { const u = $('urlInput').value.trim(); if (!/^https?:\/\//i.test(u)) { toast('Paste a full YouTube link (https://…)', 'warn'); $('urlInput').focus(); return null; } return u; };
 
   // YouTube search (needs YOUTUBE_API_KEY on the server; without it only links and catalog titles are available)
-  fetch('/api/youtube/search?q=').then((r) => r.json()).then((r) => { if (r.enabled) $('ytForm').classList.remove('hidden'); }).catch(() => {});
+  fetch(apiUrl('/api/youtube/search?q=')).then((r) => r.json()).then((r) => { if (r.enabled) $('ytForm').classList.remove('hidden'); }).catch(() => {});
   const decode = (t) => new DOMParser().parseFromString(t, 'text/html').documentElement.textContent;
   $('ytForm').onsubmit = async (e) => {
     e.preventDefault();
     const q = $('ytQ').value.trim();
     if (!q) return $('ytResults').replaceChildren();
     $('ytResults').replaceChildren(...skeletons().slice(1, 3));
-    const r = await fetch('/api/youtube/search?q=' + encodeURIComponent(q)).then((x) => x.json()).catch(() => null);
+    const r = await fetch(apiUrl('/api/youtube/search?q=' + encodeURIComponent(q))).then((x) => x.json()).catch(() => null);
     if (!r || !r.enabled) { $('ytResults').replaceChildren(h('p', { class: 'muted small' }, 'YouTube search is not configured on this server.')); return; }
     if (r.error) { $('ytResults').replaceChildren(h('p', { class: 'form-error' }, r.error)); return; }
     $('ytResults').replaceChildren(...r.items.map((it) => {

@@ -10,6 +10,17 @@ const search = require('./search');
 const PUBLIC = path.join(__dirname, '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 
+// CORS: the page may be served from another origin (e.g. Vercel) than this API/WebSocket server.
+// ALLOWED_ORIGIN = comma separated list of origins; empty or "*" allows any origin.
+function allowedOrigins() { return (process.env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean); }
+function originAllowed(origin) { const list = allowedOrigins(); return list.includes('*') || (!!origin && list.includes(origin)); }
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  const list = allowedOrigins();
+  if (list.includes('*')) res.setHeader('Access-Control-Allow-Origin', '*');
+  else if (origin && list.includes(origin)) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); }
+}
+
 function json(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
@@ -23,6 +34,13 @@ function createApp(options = {}) {
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
     const q = url.searchParams;
+    if (p.startsWith('/api/') || p === '/healthz') {
+      applyCors(req, res);
+      if (req.method === 'OPTIONS') { // preflight
+        res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token', 'Access-Control-Max-Age': '86400' });
+        return res.end();
+      }
+    }
     if (req.method === 'POST' && p === '/api/rooms') {
       const r = manager.create();
       return json(res, 200, { code: r.code });
@@ -56,6 +74,8 @@ function createApp(options = {}) {
       return;
     }
     if (req.method === 'POST' && p === '/api/blocked') {
+      // Hiding catalog videos is an admin action on a public deployment: off when AUTO_BLOCK=0, or when ADMIN_TOKEN is set and not supplied.
+      if (process.env.AUTO_BLOCK === '0' || (process.env.ADMIN_TOKEN && req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN)) return json(res, 403, { error: 'disabled' });
       let body = '';
       req.on('data', (c) => { body += c; if (body.length > 8192) req.destroy(); });
       req.on('end', () => {
@@ -81,7 +101,9 @@ function createApp(options = {}) {
     });
   });
 
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024, perMessageDeflate: false });
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024, perMessageDeflate: false,
+    // Browsers always send Origin on WebSocket handshakes: when ALLOWED_ORIGIN lists specific sites, refuse other sites' pages.
+    verifyClient: (info) => !info.req.headers.origin || originAllowed(info.req.headers.origin) });
 
   wss.on('connection', (ws) => {
     manager.counters.connections++;

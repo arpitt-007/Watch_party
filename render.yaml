@@ -1,0 +1,20 @@
+# Render Blueprint for the real-time server (WebSockets + API). The front end lives on Vercel (see vercel.json).
+# Render: New + > Blueprint > pick this repository. The free plan sleeps after ~15 min of inactivity (first request wakes it
+# in ~30-60 s) and rooms are held in memory, so they end when the service sleeps or restarts.
+services:
+  - type: web
+    name: watch-party-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # A public deployment must not let anonymous visitors permanently hide catalog videos for everyone.
+      - key: AUTO_BLOCK
+        value: "0"
+      # The Vercel site's origin(s), comma separated, e.g. https://watch-party.vercel.app (leave empty to allow any origin).
+      - key: ALLOWED_ORIGIN
+        sync: false

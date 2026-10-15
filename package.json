@@ -9,8 +9,9 @@
     "loadtest": "node scripts/loadtest.js",
     "verify-catalog": "node scripts/verify-catalog.js",
     "prune": "node scripts/prune-catalog.js",
-    "check": "node --check public/app.js && node --check public/icons.js && node --check public/shortcuts.js && node --check public/sync-core.js && node --check server/index.js && node --check server/room.js",
-    "dev": "node --watch server/index.js"
+    "check": "node --check public/app.js && node --check public/icons.js && node --check public/shortcuts.js && node --check public/sync-core.js && node --check server/index.js && node --check server/room.js && node --check scripts/build-vercel.js",
+    "dev": "node --watch server/index.js",
+    "build:vercel": "node scripts/build-vercel.js"
   },
   "engines": {
     "node": ">=18"

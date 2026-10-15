@@ -28,6 +28,7 @@ const blockedFile = process.env.WP_BLOCKED_FILE || path.join(__dirname, 'blocked
 const blocked = new Map();
 try { for (const [id, info] of Object.entries(JSON.parse(fs.readFileSync(blockedFile, 'utf8')))) blocked.set(id, info); } catch (e) { /* none yet */ }
 function block(id, code) {
+  if (process.env.AUTO_BLOCK === '0') return false; // public deployments: one visitor must not hide a video for everybody
   if (!byId.has(id) || blocked.has(id)) return false;
   blocked.set(id, { code: Number(code) || null, at: new Date().toISOString() });
   try { fs.writeFileSync(blockedFile, JSON.stringify(Object.fromEntries(blocked), null, 1)); } catch (e) { /* read-only disk: keep in memory */ }

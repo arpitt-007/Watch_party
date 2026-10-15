@@ -63,6 +63,24 @@ Everything in the catalog is a real YouTube video (37 titles; every one existed 
 * **Sync differences:** the IFrame API cannot do fine playback-rate changes, so YouTube drift is corrected by seeking only (threshold 450 ms, 2.5 s cooldown) instead of the ±8 % speed nudge. Observed in two browser tabs: ±15–60 ms. The iframe is click-through so every control goes through the room.
 * Requires internet access to youtube.com. YouTube's own ads are not suppressed and each viewer's player plays them on their own schedule, which can cause a brief resync. Non-YouTube direct video URLs still work if pasted (plain `<video>` player), but the UI only advertises YouTube.
 
+## Deploying (Vercel front end + Render real-time server)
+
+Vercel only runs short-lived serverless functions, so it cannot host this app's server (long-lived WebSocket connections and rooms held in memory). The deployment is therefore split, and the same code supports both layouts:
+
+```
+ browser ──https──▶ Vercel (static pages: public/)
+    │
+    └──wss/https──▶ Render (Node server: API + WebSocket, server/)
+```
+
+1. **Real-time server on Render** (free): New + → *Blueprint* → pick this repository (`render.yaml` configures everything). When asked for `ALLOWED_ORIGIN`, enter the Vercel site's URL (e.g. `https://watch-party.vercel.app`; several origins may be comma separated). Note the service URL, e.g. `https://watch-party-server.onrender.com`.
+2. **Front end on Vercel**: `vercel.json` is already set up (static `public/`, build step `node scripts/build-vercel.js`). Set the project environment variable `BACKEND_URL` to the Render URL and (re)deploy: `vercel env add BACKEND_URL production` then `vercel deploy --prod`. The build writes it into `public/config.js`.
+3. Open the Vercel URL, create a room, share the invite link.
+
+Server settings (environment variables): `ALLOWED_ORIGIN` (CORS and WebSocket origin check; empty or `*` = any), `AUTO_BLOCK=0` (public mode: the "hide unplayable videos for everyone" feature is off, so one visitor cannot hide catalog videos for all), `ADMIN_TOKEN` (if set, `POST /api/blocked` needs the `X-Admin-Token` header), `PORT`, `YOUTUBE_API_KEY`.
+
+Things to know about the free tiers: Render's free plan sleeps after ~15 minutes without traffic. The page wakes it as soon as it opens (and says so), which takes 30–60 s; rooms live in memory, so they end whenever the service sleeps or restarts. For always-on rooms use a paid instance or keep it awake with an uptime pinger on `/healthz`. Running everything on one host also works: `npm start` serves both the pages and the API (leave `config.js` untouched).
+
 ## Interface and keyboard shortcuts
 
 Dark, responsive UI (desktop, tablet, phone) with a landing page, a room view and a custom player control bar. Icons are an inline Lucide-style SVG set (`public/icons.js`); there are no external UI dependencies or build step. Side panel (Chat / Discover / Queue / Polls / People) can be hidden, and **theater mode** gives the player the full width with the panel as an overlay. The control bar and progress bar dissolve about 3 s after playback starts (they stay up while loading or paused, and return on mouse, touch or key activity). On-screen indicators confirm play, pause, seek, mute and volume (including what other people did), the seek bar shows a time preview on hover, and reaction hot-spots are drawn on the timeline.
@@ -127,6 +145,6 @@ docs/LATENCY.md    measurements, test conditions, failure handling
 ## Honest limitations
 * **Catalog is a snapshot** of 37 curated YouTube videos; view counts and lengths are from build time. Anything else: paste a link.
 * Only HTML5-playable sources (mp4/webm) and YouTube. No DRM streaming services (Netflix etc.) — their players can't be driven.
-* Rooms are in memory (a server restart ends them); no accounts or auth — anyone with the code can join.
+* Rooms are in memory (a server restart ends them, and so does the free Render plan going to sleep); no accounts or auth — anyone with the code can join.
 * Latency was measured on loopback; drift was validated by simulation plus a two-tab browser check, not on a fleet of real devices.
 * Background browser tabs are throttled by the browser, which can cause brief drift until the tab is active again.
